@@ -159,6 +159,23 @@ def _is_exist(file_path: str) -> bool:
     return not os.path.isdir(file_path) and os.path.exists(file_path)
 
 
+def _get_message_reactions_count(message: pyrogram.types.Message) -> int:
+    """Get the total reactions count for a telegram message."""
+    reactions = getattr(message, "reactions", None)
+    if not reactions:
+        return 0
+
+    reaction_list = getattr(reactions, "reactions", None)
+    if not reaction_list:
+        return 0
+
+    total_count = 0
+    for reaction in reaction_list:
+        total_count += int(getattr(reaction, "count", 0) or 0)
+
+    return total_count
+
+
 # pylint: disable = R0912
 
 
@@ -564,6 +581,9 @@ async def download_chat_task(
         for message in skipped_messages:
             await add_download_task(message, node)
 
+    sort_by_reactions = node.sort_by == "reactions_count"
+    sort_messages = []
+
     async for message in messages_iter:  # type: ignore
         meta_data = MetaData()
 
@@ -582,7 +602,10 @@ async def download_chat_task(
             continue
 
         if app.exec_filter(chat_download_config, meta_data):
-            await add_download_task(message, node)
+            if sort_by_reactions:
+                sort_messages.append(message)
+            else:
+                await add_download_task(message, node)
         else:
             node.download_status[message.id] = DownloadStatus.SkipDownload
             if message.media_group_id:
@@ -595,6 +618,15 @@ async def download_chat_task(
                     DownloadStatus.SkipDownload,
                 )
 
+    if sort_by_reactions:
+        sort_messages.sort(
+            key=lambda message: (_get_message_reactions_count(message), message.id),
+            reverse=node.sort_order != "asc",
+        )
+
+        for message in sort_messages:
+            await add_download_task(message, node)
+
     chat_download_config.need_check = True
     chat_download_config.total_task = node.total_task
     node.is_running = True
@@ -603,7 +635,12 @@ async def download_chat_task(
 async def download_all_chat(client: pyrogram.Client):
     """Download All chat"""
     for key, value in app.chat_download_config.items():
-        value.node = TaskNode(chat_id=key)
+        value.node = TaskNode(
+            chat_id=key,
+            limit=value.limit,
+            sort_by=value.sort_by,
+            sort_order=value.sort_order,
+        )
         try:
             await download_chat_task(client, value, value.node)
         except Exception as e:

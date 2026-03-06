@@ -15,6 +15,7 @@ from media_downloader import (
     _can_download,
     _check_config,
     _get_media_meta,
+    _get_message_reactions_count,
     _is_exist,
     app,
     download_all_chat,
@@ -24,7 +25,7 @@ from media_downloader import (
     save_msg_to_file,
     worker,
 )
-from module.app import Application, DownloadStatus, TaskNode
+from module.app import Application, ChatDownloadConfig, DownloadStatus, TaskNode
 from module.cloud_drive import CloudDriveConfig
 from module.pyrogram_extension import (
     get_extension,
@@ -857,6 +858,33 @@ class MediaDownloaderTestCase(unittest.TestCase):
         app.chat_download_config[8654123].download_filter = "id != 1213"
         self.loop.run_until_complete(download_all_chat(client))
         moc_put.assert_called()
+
+
+    def test_get_message_reactions_count(self):
+        message = MockMessage(id=1, media=False)
+        self.assertEqual(_get_message_reactions_count(message), 0)
+
+        reaction_1 = type("Reaction", (), {"count": 3})()
+        reaction_2 = type("Reaction", (), {"count": 5})()
+        message.reactions = type("MessageReactions", (), {"reactions": [reaction_1, reaction_2]})()
+
+        self.assertEqual(_get_message_reactions_count(message), 8)
+
+    def test_download_all_chat_assign_node_sort_options(self):
+        rest_app(MOCK_CONF)
+        chat_config = ChatDownloadConfig()
+        chat_config.limit = 20
+        chat_config.sort_by = "reactions_count"
+        chat_config.sort_order = "asc"
+        app.chat_download_config = {1001: chat_config}
+
+        async def _fake_download_chat_task(_, __, node):
+            self.assertEqual(node.limit, 20)
+            self.assertEqual(node.sort_by, "reactions_count")
+            self.assertEqual(node.sort_order, "asc")
+
+        with mock.patch("media_downloader.download_chat_task", new=_fake_download_chat_task):
+            self.loop.run_until_complete(download_all_chat(MockClient()))
 
     def test_can_download(self):
         file_formats = {
