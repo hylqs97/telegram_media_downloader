@@ -176,6 +176,11 @@ def _get_message_reactions_count(message: pyrogram.types.Message) -> int:
     return total_count
 
 
+def _get_message_views_count(message: pyrogram.types.Message) -> int:
+    """Get message views count for a telegram message."""
+    return int(getattr(message, "views", 0) or 0)
+
+
 # pylint: disable = R0912
 
 
@@ -582,6 +587,7 @@ async def download_chat_task(
             await add_download_task(message, node)
 
     sort_by_reactions = node.sort_by == "reactions_count"
+    sort_by_views = node.sort_by == "views_count"
     sort_messages = []
 
     async for message in messages_iter:  # type: ignore
@@ -602,7 +608,7 @@ async def download_chat_task(
             continue
 
         if app.exec_filter(chat_download_config, meta_data):
-            if sort_by_reactions:
+            if sort_by_reactions or sort_by_views:
                 sort_messages.append(message)
             else:
                 await add_download_task(message, node)
@@ -618,11 +624,17 @@ async def download_chat_task(
                     DownloadStatus.SkipDownload,
                 )
 
-    if sort_by_reactions:
-        sort_messages.sort(
-            key=lambda message: (_get_message_reactions_count(message), message.id),
-            reverse=node.sort_order != "asc",
-        )
+    if sort_by_reactions or sort_by_views:
+        if sort_by_reactions:
+            sort_messages.sort(
+                key=lambda message: (_get_message_reactions_count(message), message.id),
+                reverse=node.sort_order != "asc",
+            )
+        else:
+            sort_messages.sort(
+                key=lambda message: (_get_message_views_count(message), message.id),
+                reverse=node.sort_order != "asc",
+            )
 
         for message in sort_messages:
             await add_download_task(message, node)

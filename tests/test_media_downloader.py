@@ -16,6 +16,7 @@ from media_downloader import (
     _check_config,
     _get_media_meta,
     _get_message_reactions_count,
+    _get_message_views_count,
     _is_exist,
     app,
     download_all_chat,
@@ -870,17 +871,24 @@ class MediaDownloaderTestCase(unittest.TestCase):
 
         self.assertEqual(_get_message_reactions_count(message), 8)
 
+    def test_get_message_views_count(self):
+        message = MockMessage(id=1, media=False)
+        self.assertEqual(_get_message_views_count(message), 0)
+
+        message.views = 25
+        self.assertEqual(_get_message_views_count(message), 25)
+
     def test_download_all_chat_assign_node_sort_options(self):
         rest_app(MOCK_CONF)
         chat_config = ChatDownloadConfig()
         chat_config.limit = 20
-        chat_config.sort_by = "reactions_count"
+        chat_config.sort_by = "views_count"
         chat_config.sort_order = "asc"
         app.chat_download_config = {1001: chat_config}
 
         async def _fake_download_chat_task(_, __, node):
             self.assertEqual(node.limit, 20)
-            self.assertEqual(node.sort_by, "reactions_count")
+            self.assertEqual(node.sort_by, "views_count")
             self.assertEqual(node.sort_order, "asc")
 
         with mock.patch("media_downloader.download_chat_task", new=_fake_download_chat_task):

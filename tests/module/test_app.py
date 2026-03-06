@@ -69,7 +69,7 @@ class AppTestCase(unittest.TestCase):
             "chat": [
                 {
                     "chat_id": "test_chat",
-                    "sort_by": "reactions_count",
+                    "sort_by": "views_count",
                     "sort_order": "ASC",
                     "limit": 100,
                 }
@@ -80,7 +80,7 @@ class AppTestCase(unittest.TestCase):
 
         app.assign_config(config)
 
-        self.assertEqual(app.chat_download_config["test_chat"].sort_by, "reactions_count")
+        self.assertEqual(app.chat_download_config["test_chat"].sort_by, "views_count")
         self.assertEqual(app.chat_download_config["test_chat"].sort_order, "asc")
         self.assertEqual(app.chat_download_config["test_chat"].limit, 100)
 
