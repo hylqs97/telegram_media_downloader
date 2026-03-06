@@ -60,6 +60,30 @@ class AppTestCase(unittest.TestCase):
             app.app_data["chat"][0]["ids_to_retry"],
         )
 
+
+    def test_assign_config_sort_options(self):
+        app = Application("", "")
+        config = {
+            "api_id": 123,
+            "api_hash": "abc",
+            "chat": [
+                {
+                    "chat_id": "test_chat",
+                    "sort_by": "views_count",
+                    "sort_order": "ASC",
+                    "limit": 100,
+                }
+            ],
+            "media_types": ["video"],
+            "file_formats": {"audio": ["all"], "video": ["all"], "document": ["all"]},
+        }
+
+        app.assign_config(config)
+
+        self.assertEqual(app.chat_download_config["test_chat"].sort_by, "views_count")
+        self.assertEqual(app.chat_download_config["test_chat"].sort_order, "asc")
+        self.assertEqual(app.chat_download_config["test_chat"].limit, 100)
+
     @mock.patch("__main__.__builtins__.open", new_callable=mock.mock_open)
     @mock.patch("module.app.yaml", autospec=True)
     def test_update_config(self, mock_yaml, mock_open):

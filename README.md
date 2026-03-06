@@ -148,6 +148,9 @@ chat:
 - chat_id: telegram_chat_id
   last_read_message_id: 0
   download_filter: message_date >= 2022-12-01 00:00:00 and message_date <= 2023-01-17 00:00:00
+  sort_by: reactions_count # reactions_count / views_count
+  sort_order: desc
+  limit: 100
 - chat_id: telegram_chat_id_2
   last_read_message_id: 0
 # note we remove ids_to_retry to data.yaml
@@ -207,6 +210,9 @@ enable_download_txt: false
   - `chat_id` -  The id of the chat/channel you want to download media. Which you get from the above-mentioned steps.
   - `download_filter` - Download filter, see [How to use Filter](https://github.com/tangyoha/telegram_media_downloader/wiki/How-to-use-Filter)
   - `last_read_message_id` - If it is the first time you are going to read the channel let it be `0` or if you have already used this script to download media it will have some numbers which are auto-updated after the scripts successful execution. Don't change it.
+  - `sort_by` - Optional sorting field. Currently supports `reactions_count` (total reactions count) and `views_count` (message views count).
+  - `sort_order` - Optional sort order, supports `desc` (default) and `asc`.
+  - `limit` - Optional max messages to fetch from chat history. Useful with `sort_by` to download top N messages.
   - `ids_to_retry` - `Leave it as it is.` This is used by the downloader script to keep track of all skipped downloads so that it can be downloaded during the next execution of the script.
 - **media_types** - Type of media to download, you can update which type of media you want to download it can be one or any of the available types.
 - **file_formats** - File types to download for supported media types which are `audio`, `document` and `video`. Default format is `all`, downloads all files.

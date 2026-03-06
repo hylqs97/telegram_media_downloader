@@ -150,6 +150,9 @@ chat:
 - chat_id: telegram_chat_id
   last_read_message_id: 0
   download_filter: message_date >= 2022-12-01 00:00:00 and message_date <= 2023-01-17 00:00:00
+  sort_by: reactions_count # reactions_count / views_count
+  sort_order: desc
+  limit: 100
 - chat_id: telegram_chat_id_2
   last_read_message_id: 0
 # 我们将ids_to_retry移到data.yaml
@@ -200,6 +203,9 @@ enable_download_txt: false
   - `chat_id` -  您要下载媒体的聊天/频道的 ID。你从上述步骤中得到的。
   - `download_filter` - 下载过滤器, 查阅 [如何使用过滤器](https://github.com/tangyoha/telegram_media_downloader/wiki/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8%E8%BF%87%E6%BB%A4%E5%99%A8)
   - `last_read_message_id` -如果这是您第一次阅读频道，请将其设置为“0”，或者如果您已经使用此脚本下载媒体，它将有一些数字，这些数字会在脚本成功执行后自动更新。不要改变它。
+  - `sort_by` - 可选排序字段，当前支持 `reactions_count`（按消息总点赞/互动数排序）和 `views_count`（按消息阅读数排序）。
+  - `sort_order` - 可选排序方向，支持 `desc`（默认）和 `asc`。
+  - `limit` - 可选拉取消息数量上限。配合 `sort_by` 可下载排序后的前 N 条消息。
 - **chat_id** - 您要下载媒体的聊天/频道的 ID。你从上述步骤中得到的。
 - **last_read_message_id** - 如果这是您第一次阅读频道，请将其设置为“0”，或者如果您已经使用此脚本下载媒体，它将有一些数字，这些数字会在脚本成功执行后自动更新。不要改变它。
 - **ids_to_retry** - `保持原样。`下载器脚本使用它来跟踪所有跳过的下载，以便在下次执行脚本时可以下载它。
