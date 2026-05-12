@@ -135,6 +135,8 @@ class TaskNode:
         task_type: TaskType = TaskType.Download,
         task_id: int = 0,
         topic_id: int = 0,
+        sort_by: str = "",
+        sort_order: str = "desc",
     ):
         self.chat_id = chat_id
         self.from_user_id = from_user_id
@@ -173,6 +175,8 @@ class TaskNode:
         self.upload_status: dict = {}
         self.upload_stat_dict: dict = {}
         self.topic_id = topic_id
+        self.sort_by = sort_by
+        self.sort_order = sort_order
         self.reply_to_message = None
         self.cloud_drive_upload_stat_dict: dict = {}
 
@@ -308,6 +312,9 @@ class ChatDownloadConfig:
         self.need_check: bool = False
         self.upload_telegram_chat_id: Union[int, str] = None
         self.node: TaskNode = TaskNode(0)
+        self.limit: int = 0
+        self.sort_by: str = ""
+        self.sort_order: str = "desc"
 
 
 def get_config(config, key, default=None, val_type=str, verbose=True):
@@ -599,6 +606,17 @@ class Application:
                     ].upload_telegram_chat_id = item.get(
                         "upload_telegram_chat_id", None
                     )
+                    limit = item.get("limit", 0)
+                    if isinstance(limit, int):
+                        self.chat_download_config[item["chat_id"]].limit = max(limit, 0)
+
+                    self.chat_download_config[item["chat_id"]].sort_by = str(
+                        item.get("sort_by", "")
+                    ).strip()
+                    sort_order = str(item.get("sort_order", "desc")).strip().lower()
+                    if sort_order not in ["asc", "desc"]:
+                        sort_order = "desc"
+                    self.chat_download_config[item["chat_id"]].sort_order = sort_order
         elif _config.get("chat_id"):
             # Compatible with lower versions
             self._chat_id = _config["chat_id"]
