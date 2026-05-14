@@ -48,3 +48,7 @@ Use `<prefix>: <subject>` commit messages. Documented and recent prefixes includ
 ## Security & Configuration Notes
 
 `config.yaml`, `data.yaml`, `sessions/`, `temp/`, `downloads/`, and `log/` can contain API keys, bot tokens, sessions, private chat metadata, or media. Review them before staging; never commit real credentials or private Telegram data.
+
+# ExecPlans
+
+When writing complex features or significant refactors, use an ExecPlan (as described in .agent/PLANS.md) from design to implementation.
