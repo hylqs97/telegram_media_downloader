@@ -106,6 +106,62 @@
       var download_list_table_data = new Array()
       var chat_config_table_data = new Array()
 
+      function text_width(value) {
+        var text = value == null ? "" : String(value);
+        var width = 0;
+        for (var i = 0; i < text.length; i++) {
+          width += text.charCodeAt(i) > 255 ? 14 : 7;
+        }
+        return width;
+      }
+
+      function auto_column_width(column, data) {
+        if (column.contentWidth) {
+          return column.contentWidth;
+        }
+        var maxWidth = text_width(column.title || column.field || "");
+        if (column.field) {
+          for (var i = 0; i < data.length; i++) {
+            maxWidth = Math.max(maxWidth, text_width(data[i][column.field]));
+          }
+        }
+        var width = Math.ceil(maxWidth + (column.padding || 34));
+        if (column.minContentWidth) {
+          width = Math.max(width, column.minContentWidth);
+        }
+        if (column.maxContentWidth) {
+          width = Math.min(width, column.maxContentWidth);
+        }
+        return width;
+      }
+
+      function fit_columns(columns, data) {
+        var source = data || [];
+        return columns.map(function (column) {
+          var fitted = $.extend({}, column);
+          fitted.width = auto_column_width(fitted, source);
+          delete fitted.contentWidth;
+          delete fitted.minContentWidth;
+          delete fitted.maxContentWidth;
+          delete fitted.padding;
+          return fitted;
+        });
+      }
+
+      function reload_table_by_content(tableInstance, columns, data) {
+        tableInstance.reload({
+          data: data,
+          cols: [fit_columns(columns, data)]
+        });
+      }
+
+      function render_chat_action_rows() {
+        $('div[lay-id="chat_config_list"] .chat-action-bar').each(function () {
+          $(this).closest('.layui-table-cell').addClass('chat-action-cell');
+          $(this).closest('tr').addClass('chat-action-row');
+        });
+      }
+
       $.ajax({
         url: "get_app_version"
         , type: "get"
@@ -129,51 +185,75 @@
       });
     }
 
-      tableIns = table.render({
+      var downloadListColumns = [
+        { field: 'chat', title: 'chat', minContentWidth: 72 },
+        { field: 'id', title: 'id', minContentWidth: 54 },
+        { field: 'filename', title: 'file name', align: 'center', minContentWidth: 120, maxContentWidth: 620 },
+        { field: 'total_size', title: 'total byte', align: 'center', minContentWidth: 90 },
+        {
+          field: 'download_progress', title: 'download progress', align: 'center', minContentWidth: 150, templet: function (d) {
+            var ys = '';
+            if (30 < d.download_progress && d.download_progress < 100) {
+              ys = 'layui-bg-blue'
+            } else if (0 < d.download_progress && d.download_progress <= 30) {
+              ys = 'layui-bg-red'
+            }
+            else if (100 == d.download_progress) {
+              ys = 'layui-bg-green'
+            }
+            return '<div class="layui-progress layui-progress-big" lay-showpercent="true"  lay-filter="down-' + d.id + '"><div class="layui-progress-bar ' + ys + '" lay-percent="' + d.download_progress + '%"></div></div>'
+          }
+        },
+        { field: 'download_speed', title: 'download speed', align: 'center', minContentWidth: 120 }
+      ];
+
+      var alreadyDownloadColumns = [
+        { field: 'id', title: 'id', minContentWidth: 54 },
+        { field: 'filename', title: 'file name', align: 'center', minContentWidth: 120, maxContentWidth: 620 },
+        { field: 'total_size', title: 'total size', align: 'center', minContentWidth: 90 },
+        { field: 'save_path', title: 'save path', align: 'center', minContentWidth: 140, maxContentWidth: 760 }
+      ];
+
+      var chatConfigColumns = [
+        { field: 'chat_id', title: 'chat', minContentWidth: 86 },
+        { field: 'status', title: 'status', align: 'center', minContentWidth: 70 },
+        { field: 'last_read_message_id', title: 'last id', align: 'center', minContentWidth: 74 },
+        { field: 'ids_to_retry', title: 'retry', align: 'center', minContentWidth: 58 },
+        { field: 'finish_task', title: 'done', align: 'center', minContentWidth: 58 },
+        { field: 'total_task', title: 'total', align: 'center', minContentWidth: 58 },
+        {
+          field: 'progress', title: 'progress', align: 'center', minContentWidth: 150, templet: function (d) {
+            var value = d.progress || 0;
+            var color = value == 100 ? 'layui-bg-green' : 'layui-bg-blue';
+            return '<div class="layui-progress layui-progress-big" lay-showpercent="true"><div class="layui-progress-bar ' + color + '" lay-percent="' + value + '%"></div></div>'
+          }
+        },
+        { field: 'file_size_min', title: 'min size', align: 'center', minContentWidth: 76 },
+        { field: 'file_size_max', title: 'max size', align: 'center', minContentWidth: 76 },
+        { field: 'download_filter', title: 'filter', minContentWidth: 80, maxContentWidth: 460 },
+        { title: 'action', toolbar: '#chat_config_actions', contentWidth: 240, fixed: 'right', align: 'center' }
+      ];
+
+      var downloadListTable = table.render({
         elem: '#download_list'
         , data: download_list_table_data
         , title: 'download_list'
         , height: 'full-160'
         , limit: 10000
-        , cols: [[
-          { field: 'chat', title: 'chat', width: 100 },
-          { field: 'id', title: 'id', width: 100 }
-          , { field: 'filename', title: 'file name', align: 'center' }
-          , { field: 'total_size', title: 'total byte', align: 'center' }
-          , {
-            field: 'download_progress', title: 'download progress', align: 'center', templet: function (d) {
-              var ys = '';
-              if (30 < d.download_progress && d.download_progress < 100) {
-                ys = 'layui-bg-blue'
-              } else if (0 < d.download_progress && d.download_progress <= 30) {
-                ys = 'layui-bg-red'
-              }
-              else if (100 == d.download_progress) {
-                ys = 'layui-bg-green'
-              }
-              return '<div class="layui-progress layui-progress-big" lay-showpercent="true"  lay-filter="down-' + d.id + '"><div class="layui-progress-bar ' + ys + '" lay-percent="' + d.download_progress + '%"></div></div>'
-            }
-          }
-          , { field: 'download_speed', title: 'download speed', align: 'center' }
-        ]]
+        , cols: [fit_columns(downloadListColumns, download_list_table_data)]
         , done: function (res, currentCount) {
           element.render()
         }
       });
 
-      table.render({
+      var alreadyDownloadTable = table.render({
         elem: '#already_download_list'
         , data: already_download_list_data
         , title: 'already_download_list'
         , height: 'full-160'
         , limit: 10000
-        , cols: [[
-
-          { field: 'id', title: 'id', width: 100 }
-          , { field: 'filename', title: 'file name', align: 'center' }
-          , { field: 'total_size', title: 'total size', align: 'center' }
-          , { field: 'save_path', title: 'save path', align: 'center' }
-        ]], done: function (res, currentCount) {
+        , cols: [fit_columns(alreadyDownloadColumns, already_download_list_data)]
+        , done: function (res, currentCount) {
           element.render()
         }
       });
@@ -184,30 +264,10 @@
         , title: 'chat_config_list'
         , height: 'full-230'
         , limit: 10000
-        , cols: [[
-          { field: 'chat_id', title: 'chat', width: 140 },
-          { field: 'status', title: 'status', width: 100, align: 'center' },
-          { field: 'last_read_message_id', title: 'last id', width: 110, align: 'center' },
-          { field: 'ids_to_retry', title: 'retry', width: 80, align: 'center' },
-          { field: 'finish_task', title: 'done', width: 80, align: 'center' },
-          { field: 'total_task', title: 'total', width: 80, align: 'center' },
-          {
-            field: 'progress', title: 'progress', width: 180, align: 'center', templet: function (d) {
-              var value = d.progress || 0;
-              var color = value == 100 ? 'layui-bg-green' : 'layui-bg-blue';
-              return '<div class="layui-progress layui-progress-big" lay-showpercent="true"><div class="layui-progress-bar ' + color + '" lay-percent="' + value + '%"></div></div>'
-            }
-          },
-          { field: 'file_size_min', title: 'min size', width: 110, align: 'center' },
-          { field: 'file_size_max', title: 'max size', width: 110, align: 'center' },
-          { field: 'download_filter', title: 'filter', minWidth: 220 },
-          { title: 'action', toolbar: '#chat_config_actions', width: 240, fixed: 'right', align: 'center' }
-        ]], done: function () {
+        , cols: [fit_columns(chatConfigColumns, chat_config_table_data)]
+        , done: function () {
           element.render()
-          $('div[lay-id="chat_config_list"] .chat-action-bar').each(function () {
-            $(this).closest('.layui-table-cell').addClass('chat-action-cell');
-            $(this).closest('tr').addClass('chat-action-row');
-          });
+          render_chat_action_rows()
         }
       });
 
@@ -219,7 +279,7 @@
           , dataType: "json"
           , success: function (result) {
             chat_config_table_data = result.data || []
-            chatConfigTable.reload({ data: chat_config_table_data })
+            reload_table_by_content(chatConfigTable, chatConfigColumns, chat_config_table_data)
           }
         });
       };
@@ -296,66 +356,14 @@
           , async: false
           , dataType: "json"
           , success: function (result) {
-            // first remove finish and update
-            for (var j = 0, len2 = download_list_table_data.length; j < len2; j++) {
-              find_iter = false
-              for (var i = 0, len = result.length; i < len; i++) {
-                if (result[i].chat == download_list_table_data[j].chat && result[i].id == download_list_table_data[j].id) {
-                  download_list_table_data[j].download_progress = result[i].download_progress
-                  var progress = download_list_table_data[j].download_progress
-                  element.progress('down-' + result[i].chat + '-' + result[i].id, progress + '%');
-
-                  var download_speed_obj = $('div[lay-filter="down_speed-' + result[i].chat + '-' + result[i].id + '"]')
-                  download_speed_obj.html(result[i].download_speed)
-
-                  if (progress == 100) {
-                    var device_obj = $('div[lay-filter="down-' + result[i].chat + '-' + result[i].id + '"] div')
-                    device_obj.removeClass("layui-bg-blue")
-                    device_obj.addClass("layui-bg-green")
-                    obj = $('div[lay-id="download_list"]  tr[data-index="' + result[i].chat + '-' + result[i].id + '"]')
-                    obj.remove()
-                  }
-                  find_iter = true
-                  break
-                }
-              }
-
-            }
-
-            // new task
+            var active_data = []
             for (var i = 0, len = result.length; i < len; i++) {
-              find_iter = false
-              for (var j = 0, len2 = download_list_table_data.length; j < len2; j++) {
-                if (result[i].chat == download_list_table_data[j].chat && result[i].id == download_list_table_data[j].id) {
-                  find_iter = true
-                  break
-                }
+              if (result[i].download_progress != 100) {
+                active_data.push(result[i])
               }
-
-              if (find_iter || result[i].download_progress == 100) {
-                continue;
-              }
-              // not found
-              obj = $('div[lay-id="download_list"]  .layui-table-body .layui-table tbody')
-              var tr = ' <tr data-index="' + result[i].chat + '-' + result[i].id + '">' +
-                '<td data-field="id" data-key="1-0-0" class=""><div class="layui-table-cell laytable-cell-1-0-0">' + result[i].chat + '</div></td>' +
-                '<td data-field="id" data-key="1-0-1" class=""><div class="layui-table-cell laytable-cell-1-0-1">' + result[i].id + '</div></td>' +
-                '<td data-field="filename" data-key="1-0-2" class=""><div class="layui-table-cell laytable-cell-1-0-2" align="center">' + result[i].filename + '</div></td>' +
-                '<td data-field="total_size" data-key="1-0-3" class=""><div class="layui-table-cell laytable-cell-1-0-3" align="center">' + result[i].total_size + '</div></td>' +
-                '<td data-field="download_progress" data-key="1-0-4" data-content="' + result[i].download_progress + '" class=""><div class="layui-table-cell laytable-cell-1-0-4" align="center"><div class="layui-progress layui-progress-big" lay-showpercent="true" lay-filter="down-' + result[i].chat + '-' + result[i].id + '"><div class="layui-progress-bar layui-bg-blue" lay-percent="' + result[i].download_progress + '%" style="width: ' + result[i].download_progress + '%;"><span class="layui-progress-text">' + result[i].download_progress + '%</span></div></div></div></td>' +
-                '<td data-field="download_speed" data-key="1-0-5" class=""><div class="layui-table-cell laytable-cell-1-0-5" align="center"lay-filter="down_speed-' + result[i].chat + '-' + result[i].id + '">' + result[i].download_speed + '</div></td>' +
-                "  </tr>";
-              obj.append(tr)
-              download_list_table_data.push(result[i])
-
-              if (download_list_table_data.length == 1) {
-                $(".layui-none").remove()
-              }
-
-              element.render()
-
             }
-
+            download_list_table_data = active_data
+            reload_table_by_content(downloadListTable, downloadListColumns, download_list_table_data)
             element.render()
           }
         });
@@ -390,42 +398,14 @@
           , async: false
           , dataType: "json"
           , success: function (result) {
-            // if not exist then add
+            var finished_data = []
             for (var i = 0, len = result.length; i < len; i++) {
-              if (result[i].download_progress != 100) {
-                continue
+              if (result[i].download_progress == 100) {
+                finished_data.push(result[i])
               }
-
-              find_iter = false
-
-              for (var j = 0, len2 = already_download_list_data.length; j < len2; j++) {
-                if (result[i].chat == download_list_table_data[i].chat && result[i].id == already_download_list_data[j].id) {
-                  find_iter = true
-                  break
-                }
-              }
-
-              if (find_iter) {
-                continue;
-              }
-              // not found
-              obj = $('div[lay-id="already_download_list"]  .layui-table-body .layui-table tbody')
-              var tr = ' <tr data-index="' + result[i].chat + '-' + result[i].id + '">' +
-                '<td data-field="id" data-key="2-0-0" class=""><div class="layui-table-cell laytable-cell-2-0-0">' + result[i].id + '</div></td>' +
-                '<td data-field="filename" data-key="2-0-1" class=""><div class="layui-table-cell laytable-cell-2-0-1" align="center">' + result[i].filename + '</div></td>' +
-                '<td data-field="total_size" data-key="2-0-2" class=""><div class="layui-table-cell laytable-cell-2-0-2" align="center">' + result[i].total_size + '</div></td>' +
-                '<td data-field="save_path" data-key="2-0-3" class=""><div class="layui-table-cell laytable-cell-2-0-3" align="center">' + result[i].save_path + '</div></td>' +
-                "  </tr>";
-              obj.append(tr)
-
-              already_download_list_data.push(result[i])
-
-              if (already_download_list_data.length == 1) {
-                $(".layui-none").remove()
-              }
-              element.render()
             }
-
+            already_download_list_data = finished_data
+            reload_table_by_content(alreadyDownloadTable, alreadyDownloadColumns, already_download_list_data)
             element.render()
           }
         });
