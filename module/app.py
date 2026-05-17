@@ -445,7 +445,7 @@ class Application:
         self.after_upload_telegram_delete: bool = True
         self.web_login_secret: str = ""
         self.debug_web: bool = False
-        self.web_auto_start: bool = True
+        self.web_auto_start: bool = False
         self.log_level: str = "INFO"
         self.start_timeout: int = 60
         self.allowed_user_ids: list = []

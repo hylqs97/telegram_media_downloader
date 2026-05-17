@@ -27,6 +27,7 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(app.save_path, os.path.join(os.path.abspath("."), "downloads"))
         self.assertEqual(app.proxy, {})
         self.assertEqual(app.restart_program, False)
+        self.assertEqual(app.web_auto_start, False)
 
         app.chat_download_config[123] = ChatDownloadConfig()
         app.chat_download_config[123].last_read_message_id = 13

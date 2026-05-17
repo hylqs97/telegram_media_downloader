@@ -197,7 +197,7 @@ file_name_prefix_split: ' - '
 max_download_task: 5
 web_host: 127.0.0.1
 web_port: 5000
-web_auto_start: true
+web_auto_start: false
 language: EN
 web_login_secret: 123
 allowed_user_ids:
@@ -241,7 +241,7 @@ enable_download_txt: false
 - **hide_file_name** - Whether to hide the web interface file name, default `false`
 - **web_host** - Web host
 - **web_port** - Web port
-- **web_auto_start** - Automatically start all configured chats when the app starts. Set to `false` to start selected chats from the Web UI.
+- **web_auto_start** - Automatically start all configured chats when the app starts, default `false`. Set to `true` to restore startup downloads.
 - **language** - Application language, the default is English (`EN`), optional `ZH`(Chinese),`RU`,`UA`
 - **web_login_secret** - Web page login password, if not configured, no login is required to access the web page
 - **log_level** - see `logging._nameToLevel`.

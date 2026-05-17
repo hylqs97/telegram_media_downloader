@@ -191,7 +191,7 @@ file_name_prefix_split: ' - '
 max_download_task: 5
 web_host: 127.0.0.1
 web_port: 5000
-web_auto_start: true
+web_auto_start: false
 web_login_secret: 123
 allowed_user_ids:
 - 'me'
@@ -236,7 +236,7 @@ enable_download_txt: false
 - **hide_file_name** - 是否隐藏web界面文件名称，默认`false`
 - **web_host** - web界面地址
 - **web_port** - web界面端口
-- **web_auto_start** - 程序启动后是否自动下载全部已配置群组。设置为 `false` 后，可在 Web 页面中手动选择要启动的群组。
+- **web_auto_start** - 程序启动后是否自动下载全部已配置群组，默认 `false`。设置为 `true` 可恢复启动即下载。
 - **language** - 应用语言，默认为英文(`EN`),可选`ZH`（中文）,`RU`,`UA`
 - **web_login_secret** - 网页登录密码，如果不配置则访问网页不需要登录
 - **log_level** - 默认日志等级，请参阅 `logging._nameToLevel`
