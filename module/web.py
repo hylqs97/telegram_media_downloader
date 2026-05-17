@@ -1,8 +1,10 @@
 """web ui for media download"""
 
+import asyncio
 import logging
 import os
 import threading
+from typing import Callable, Optional
 
 from flask import Flask, jsonify, render_template, request
 from flask_login import LoginManager, UserMixin, login_required, login_user
@@ -30,6 +32,9 @@ _login_manager.login_view = "login"
 _login_manager.init_app(_flask_app)
 web_login_users: dict = {}
 deAesCrypt = AesBase64("1234123412ABCDEF", "ABCDEF1234123412")
+_application: Optional[Application] = None
+_download_client = None
+_start_chat_download_handler: Optional[Callable] = None
 
 
 class User(UserMixin):
@@ -71,7 +76,11 @@ def run_web_server(app: Application):
 
 
 # pylint: disable = W0603
-def init_web(app: Application):
+def init_web(
+    app: Application,
+    download_client=None,
+    start_chat_download_handler: Optional[Callable] = None,
+):
     """
     Set the value of the users variable.
 
@@ -82,6 +91,12 @@ def init_web(app: Application):
         None.
     """
     global web_login_users
+    global _application
+    global _download_client
+    global _start_chat_download_handler
+    _application = app
+    _download_client = download_client
+    _start_chat_download_handler = start_chat_download_handler
     if app.web_login_secret:
         web_login_users = {"root": app.web_login_secret}
     else:
@@ -169,6 +184,182 @@ def web_set_download_state():
         return "continue"
 
     return state
+
+
+def _chat_download_active(chat_config) -> bool:
+    """Whether a chat has scheduled or active download work."""
+    node = chat_config.node
+    if node.is_stop_transmission:
+        return False
+
+    if not chat_config.need_check:
+        return True
+
+    return node.is_running and node.total_task != node.total_download_task
+
+
+def _chat_download_status(chat_config) -> str:
+    """Return a compact status for the web UI."""
+    if _chat_download_active(chat_config):
+        return "running"
+    if chat_config.node.is_stop_transmission:
+        return "stopped"
+    if chat_config.total_task and chat_config.finish_task >= chat_config.total_task:
+        return "finished"
+    return "idle"
+
+
+def _chat_config_rows():
+    """Build rows for the chat config table."""
+    if not _application:
+        return []
+
+    rows = []
+    for chat_id, chat_config in _application.chat_download_config.items():
+        progress = 0
+        if chat_config.total_task:
+            progress = round(chat_config.finish_task / chat_config.total_task * 100, 1)
+
+        rows.append(
+            {
+                "chat_id": str(chat_id),
+                "last_read_message_id": chat_config.last_read_message_id,
+                "download_filter": chat_config.download_filter or "",
+                "file_size_min": (
+                    format_byte(chat_config.file_size_min)
+                    if chat_config.file_size_min is not None
+                    else ""
+                ),
+                "file_size_max": (
+                    format_byte(chat_config.file_size_max)
+                    if chat_config.file_size_max is not None
+                    else ""
+                ),
+                "file_size_min_bytes": chat_config.file_size_min,
+                "file_size_max_bytes": chat_config.file_size_max,
+                "total_task": chat_config.total_task,
+                "finish_task": chat_config.finish_task,
+                "ids_to_retry": len(chat_config.ids_to_retry),
+                "progress": progress,
+                "status": _chat_download_status(chat_config),
+            }
+        )
+
+    return rows
+
+
+@_flask_app.route("/get_chat_configs")
+@login_required
+def get_chat_configs():
+    """Get configured chat downloads."""
+    data = _chat_config_rows()
+    return jsonify({"code": 0, "count": len(data), "data": data})
+
+
+@_flask_app.route("/save_chat_config", methods=["POST"])
+@login_required
+def save_chat_config():
+    """Create or update one chat config."""
+    if not _application:
+        return jsonify({"code": 1, "msg": "application is not ready"})
+
+    chat_id = request.form.get("chat_id", "").strip()
+    if not chat_id:
+        return jsonify({"code": 1, "msg": "chat_id is required"})
+
+    try:
+        origin_chat_id = request.form.get("origin_chat_id", "")
+        if origin_chat_id:
+            resolved_origin_chat_id = _application.resolve_chat_id(origin_chat_id)
+            origin_chat_config = _application.chat_download_config.get(
+                resolved_origin_chat_id
+            )
+            if origin_chat_config and _chat_download_active(origin_chat_config):
+                return jsonify({"code": 1, "msg": "stop the chat before saving it"})
+
+        last_read_message_id = int(request.form.get("last_read_message_id") or 0)
+        _application.upsert_chat_download_config(
+            chat_id=chat_id,
+            last_read_message_id=last_read_message_id,
+            download_filter=request.form.get("download_filter", ""),
+            file_size_min=request.form.get("file_size_min", ""),
+            file_size_max=request.form.get("file_size_max", ""),
+            origin_chat_id=origin_chat_id,
+        )
+        _application.update_config()
+    except Exception as e:
+        return jsonify({"code": 1, "msg": str(e)})
+
+    return jsonify({"code": 0, "msg": "saved"})
+
+
+@_flask_app.route("/delete_chat_config", methods=["POST"])
+@login_required
+def delete_chat_config():
+    """Delete one chat config."""
+    if not _application:
+        return jsonify({"code": 1, "msg": "application is not ready"})
+
+    chat_id = request.form.get("chat_id", "").strip()
+    resolved_chat_id = _application.resolve_chat_id(chat_id)
+    if resolved_chat_id not in _application.chat_download_config:
+        return jsonify({"code": 1, "msg": "chat not found"})
+
+    chat_config = _application.chat_download_config[resolved_chat_id]
+    if _chat_download_active(chat_config):
+        return jsonify({"code": 1, "msg": "stop the chat before deleting it"})
+
+    _application.delete_chat_download_config(resolved_chat_id)
+    _application.update_config()
+    return jsonify({"code": 0, "msg": "deleted"})
+
+
+@_flask_app.route("/start_chat_download", methods=["POST"])
+@login_required
+def web_start_chat_download():
+    """Start one configured chat."""
+    if not _application or not _download_client or not _start_chat_download_handler:
+        return jsonify({"code": 1, "msg": "download client is not ready"})
+
+    chat_id = request.form.get("chat_id", "").strip()
+    resolved_chat_id = _application.resolve_chat_id(chat_id)
+    if resolved_chat_id not in _application.chat_download_config:
+        return jsonify({"code": 1, "msg": "chat not found"})
+
+    chat_config = _application.chat_download_config[resolved_chat_id]
+    if _chat_download_active(chat_config):
+        return jsonify({"code": 1, "msg": "chat is already running"})
+
+    chat_config.need_check = False
+    try:
+        asyncio.run_coroutine_threadsafe(
+            _start_chat_download_handler(_download_client, resolved_chat_id),
+            _application.loop,
+        )
+    except Exception as e:
+        chat_config.need_check = True
+        return jsonify({"code": 1, "msg": str(e)})
+
+    return jsonify({"code": 0, "msg": "started"})
+
+
+@_flask_app.route("/stop_chat_download", methods=["POST"])
+@login_required
+def web_stop_chat_download():
+    """Stop one configured chat."""
+    if not _application:
+        return jsonify({"code": 1, "msg": "application is not ready"})
+
+    chat_id = request.form.get("chat_id", "").strip()
+    resolved_chat_id = _application.resolve_chat_id(chat_id)
+    if resolved_chat_id not in _application.chat_download_config:
+        return jsonify({"code": 1, "msg": "chat not found"})
+
+    chat_config = _application.chat_download_config[resolved_chat_id]
+    chat_config.node.stop_transmission()
+    chat_config.need_check = True
+    _application.update_config()
+    return jsonify({"code": 0, "msg": "stopped"})
 
 
 @_flask_app.route("/get_app_version")

@@ -32,6 +32,7 @@ from utils.format import truncate_filename, validate_title
 from utils.log import LogFilter
 from utils.meta import print_meta
 from utils.meta_data import MetaData
+from utils.updates import check_for_updates
 
 logging.basicConfig(
     level=logging.INFO,
@@ -566,6 +567,7 @@ async def download_chat_task(
     node: TaskNode,
 ):
     """Download all task"""
+    node.is_running = True
     messages_iter = get_chat_history_v2(
         client,
         node.chat_id,
@@ -644,15 +646,66 @@ async def download_chat_task(
     node.is_running = True
 
 
+def _build_chat_task_node(
+    chat_id: Union[int, str], chat_download_config: ChatDownloadConfig
+) -> TaskNode:
+    """Build a task node from a stored chat config."""
+    return TaskNode(
+        chat_id=chat_id,
+        upload_telegram_chat_id=chat_download_config.upload_telegram_chat_id,
+        limit=chat_download_config.limit,
+        sort_by=chat_download_config.sort_by,
+        sort_order=chat_download_config.sort_order,
+    )
+
+
+def _is_chat_download_active(chat_download_config: ChatDownloadConfig) -> bool:
+    """Check whether a chat config already has active work."""
+    node = chat_download_config.node
+    if node.is_stop_transmission:
+        return False
+
+    if not chat_download_config.need_check and node.is_running:
+        return True
+
+    return node.is_running and node.total_task != node.total_download_task
+
+
+async def start_chat_download(
+    client: pyrogram.Client, chat_id: Union[int, str]
+) -> Tuple[bool, str]:
+    """Start one configured chat download from the web UI."""
+    resolved_chat_id = app.resolve_chat_id(chat_id)
+    if resolved_chat_id not in app.chat_download_config:
+        return False, f"chat {chat_id} not found"
+
+    chat_download_config = app.chat_download_config[resolved_chat_id]
+    if _is_chat_download_active(chat_download_config):
+        return False, f"chat {chat_id} is already running"
+
+    chat_download_config.need_check = False
+    chat_download_config.total_task = 0
+    chat_download_config.finish_task = 0
+    chat_download_config.node = _build_chat_task_node(
+        resolved_chat_id, chat_download_config
+    )
+
+    try:
+        await download_chat_task(client, chat_download_config, chat_download_config.node)
+    except Exception as e:
+        chat_download_config.need_check = True
+        logger.warning(f"Download {resolved_chat_id} error: {e}")
+        return False, str(e)
+    finally:
+        chat_download_config.need_check = True
+
+    return True, "started"
+
+
 async def download_all_chat(client: pyrogram.Client):
     """Download All chat"""
     for key, value in app.chat_download_config.items():
-        value.node = TaskNode(
-            chat_id=key,
-            limit=value.limit,
-            sort_by=value.sort_by,
-            sort_order=value.sort_order,
-        )
+        value.node = _build_chat_task_node(key, value)
         try:
             await download_chat_task(client, value, value.node)
         except Exception as e:
@@ -666,10 +719,12 @@ async def run_until_all_task_finish():
     while True:
         finish: bool = True
         for _, value in app.chat_download_config.items():
+            if value.node.is_stop_transmission:
+                continue
             if not value.need_check or value.total_task != value.finish_task:
                 finish = False
 
-        if (not app.bot_token and finish) or app.restart_program:
+        if (not app.bot_token and app.web_auto_start and finish) or app.restart_program:
             break
 
         await asyncio.sleep(1)
@@ -709,14 +764,18 @@ def main():
     )
     try:
         app.pre_run()
-        init_web(app)
+        init_web(app, client, start_chat_download)
 
         set_max_concurrent_transmissions(client, app.max_concurrent_transmissions)
 
         app.loop.run_until_complete(start_server(client))
         logger.success(_t("Successfully started (Press Ctrl+C to stop)"))
 
-        app.loop.create_task(download_all_chat(client))
+        if app.web_auto_start:
+            app.loop.create_task(download_all_chat(client))
+        else:
+            for value in app.chat_download_config.values():
+                value.need_check = True
         for _ in range(app.max_download_task):
             task = app.loop.create_task(worker(client))
             tasks.append(task)

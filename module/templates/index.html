@@ -20,7 +20,7 @@
       <ul class="layui-tab-title">
         <li class="layui-this">Downloading</li>
         <li>Downloaded</li>
-        <!-- <li>Config</li> -->
+        <li>Chats</li>
       </ul>
       <div class="stop-btn" id="download_state" data-value="{{ download_state }}" onclick="download_state_change(this)"> {{ download_state }} </div>
     </div>
@@ -31,11 +31,33 @@
       <div class="layui-tab-item">
         <table class="layui-hide" id="already_download_list" lay-filter="already_download_list"></table>
       </div>
-      <!-- <div class="layui-tab-item">
-        <form class="layui-form" action="">
-        under development
-      </form>
-      </div> -->
+      <div class="layui-tab-item">
+        <form class="layui-form chat-config-form" lay-filter="chat_config_form">
+          <input type="hidden" name="origin_chat_id" id="origin_chat_id">
+          <div class="layui-row layui-col-space8">
+            <div class="layui-col-md2 layui-col-sm6">
+              <input type="text" name="chat_id" required lay-verify="required" placeholder="chat id" autocomplete="off" class="layui-input">
+            </div>
+            <div class="layui-col-md2 layui-col-sm6">
+              <input type="number" name="last_read_message_id" placeholder="last message id" autocomplete="off" class="layui-input">
+            </div>
+            <div class="layui-col-md2 layui-col-sm6">
+              <input type="text" name="file_size_min" placeholder="min file size" autocomplete="off" class="layui-input">
+            </div>
+            <div class="layui-col-md2 layui-col-sm6">
+              <input type="text" name="file_size_max" placeholder="max file size" autocomplete="off" class="layui-input">
+            </div>
+            <div class="layui-col-md2 layui-col-sm8">
+              <input type="text" name="download_filter" placeholder="download filter" autocomplete="off" class="layui-input">
+            </div>
+            <div class="layui-col-md2 layui-col-sm4 chat-config-actions">
+              <button class="layui-btn layui-btn-sm" lay-submit lay-filter="save_chat_config">Save</button>
+              <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" id="reset_chat_config">New</button>
+            </div>
+          </div>
+        </form>
+        <table class="layui-hide" id="chat_config_list" lay-filter="chat_config_list"></table>
+      </div>
     </div>
   </div>
 
@@ -62,16 +84,25 @@
     </div>
   </div>
 
+  <script type="text/html" id="chat_config_actions">
+    <a class="layui-btn layui-btn-xs" lay-event="start">Start</a>
+    <a class="layui-btn layui-btn-warm layui-btn-xs" lay-event="stop">Stop</a>
+    <a class="layui-btn layui-btn-normal layui-btn-xs" lay-event="edit">Edit</a>
+    <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="delete">Delete</a>
+  </script>
+
   <script src="static/layui/layui.js"></script>
   <script>
 
-    layui.use(['table', 'element'], function () {
+    layui.use(['table', 'element', 'form'], function () {
       var table = layui.table;
       var element = layui.element;
       var layer = layui.layer;
+      var form = layui.form;
       var $ = layui.$;
       var already_download_list_data = new Array()
       var download_list_table_data = new Array()
+      var chat_config_table_data = new Array()
 
       $.ajax({
         url: "get_app_version"
@@ -142,6 +173,113 @@
           , { field: 'save_path', title: 'save path', align: 'center' }
         ]], done: function (res, currentCount) {
           element.render()
+        }
+      });
+
+      var chatConfigTable = table.render({
+        elem: '#chat_config_list'
+        , data: chat_config_table_data
+        , title: 'chat_config_list'
+        , height: 'full-230'
+        , limit: 10000
+        , cols: [[
+          { field: 'chat_id', title: 'chat', width: 140 },
+          { field: 'status', title: 'status', width: 100, align: 'center' },
+          { field: 'last_read_message_id', title: 'last id', width: 110, align: 'center' },
+          { field: 'ids_to_retry', title: 'retry', width: 80, align: 'center' },
+          { field: 'finish_task', title: 'done', width: 80, align: 'center' },
+          { field: 'total_task', title: 'total', width: 80, align: 'center' },
+          {
+            field: 'progress', title: 'progress', width: 180, align: 'center', templet: function (d) {
+              var value = d.progress || 0;
+              var color = value == 100 ? 'layui-bg-green' : 'layui-bg-blue';
+              return '<div class="layui-progress layui-progress-big" lay-showpercent="true"><div class="layui-progress-bar ' + color + '" lay-percent="' + value + '%"></div></div>'
+            }
+          },
+          { field: 'file_size_min', title: 'min size', width: 110, align: 'center' },
+          { field: 'file_size_max', title: 'max size', width: 110, align: 'center' },
+          { field: 'download_filter', title: 'filter', minWidth: 220 },
+          { title: 'action', toolbar: '#chat_config_actions', width: 220, align: 'center' }
+        ]], done: function () {
+          element.render()
+        }
+      });
+
+      function reload_chat_configs() {
+        $.ajax({
+          url: "get_chat_configs"
+          , type: "get"
+          , async: false
+          , dataType: "json"
+          , success: function (result) {
+            chat_config_table_data = result.data || []
+            chatConfigTable.reload({ data: chat_config_table_data })
+          }
+        });
+      };
+
+      function reset_chat_form() {
+        $("#origin_chat_id").val("")
+        form.val("chat_config_form", {
+          "origin_chat_id": "",
+          "chat_id": "",
+          "last_read_message_id": "",
+          "file_size_min": "",
+          "file_size_max": "",
+          "download_filter": ""
+        })
+      };
+
+      function post_chat_action(url, data, success) {
+        $.ajax({
+          url: url
+          , type: "post"
+          , data: data
+          , dataType: "json"
+          , success: function (result) {
+            if (result.code != 0) {
+              layer.msg(result.msg || "failed")
+              return
+            }
+            if (success) {
+              success(result)
+            }
+            reload_chat_configs()
+          }
+        });
+      };
+
+      form.on('submit(save_chat_config)', function (data) {
+        post_chat_action("save_chat_config", data.field, function () {
+          reset_chat_form()
+        })
+        return false;
+      });
+
+      $("#reset_chat_config").on("click", function () {
+        reset_chat_form()
+      });
+
+      table.on('tool(chat_config_list)', function (obj) {
+        var data = obj.data;
+        if (obj.event === 'start') {
+          post_chat_action("start_chat_download", { chat_id: data.chat_id })
+        } else if (obj.event === 'stop') {
+          post_chat_action("stop_chat_download", { chat_id: data.chat_id })
+        } else if (obj.event === 'edit') {
+          form.val("chat_config_form", {
+            "origin_chat_id": data.chat_id,
+            "chat_id": data.chat_id,
+            "last_read_message_id": data.last_read_message_id,
+            "file_size_min": data.file_size_min_bytes || "",
+            "file_size_max": data.file_size_max_bytes || "",
+            "download_filter": data.download_filter || ""
+          })
+        } else if (obj.event === 'delete') {
+          layer.confirm('Delete ' + data.chat_id + '?', function (index) {
+            post_chat_action("delete_chat_config", { chat_id: data.chat_id })
+            layer.close(index)
+          });
         }
       });
 
@@ -236,6 +374,7 @@
       var update_download_list_int = self.setInterval(update_download_list, 1000);
       var update_download_status_int = self.setInterval(update_download_status, 1000);
       var update_already_download_list_int = 0;
+      var update_chat_config_int = 0;
 
 
       function update_already_download_list() {
@@ -302,6 +441,15 @@
 
         if (data.index == 1) {
           update_already_download_list_int = self.setInterval(update_already_download_list, 1000);
+        }
+
+        if (data.index != 2) {
+          clearInterval(update_chat_config_int);
+        }
+
+        if (data.index == 2) {
+          reload_chat_configs();
+          update_chat_config_int = self.setInterval(reload_chat_configs, 2000);
         }
 
       });

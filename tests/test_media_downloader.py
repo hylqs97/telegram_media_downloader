@@ -118,6 +118,7 @@ def rest_app(conf: dict):
     app.max_concurrent_transmissions: int = 1
     app.web_host: str = "localhost"
     app.web_port: int = 5000
+    app.web_auto_start = True
     app.config_file = "config_test.yaml"
     app.app_data_file = "data_test.yaml"
     app.config = conf

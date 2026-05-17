@@ -151,6 +151,8 @@ chat:
   sort_by: reactions_count # reactions_count / views_count
   sort_order: desc
   limit: 100
+  file_size_min: 10MB
+  file_size_max: 2GB
 - chat_id: telegram_chat_id_2
   last_read_message_id: 0
 # note we remove ids_to_retry to data.yaml
@@ -195,6 +197,7 @@ file_name_prefix_split: ' - '
 max_download_task: 5
 web_host: 127.0.0.1
 web_port: 5000
+web_auto_start: true
 language: EN
 web_login_secret: 123
 allowed_user_ids:
@@ -213,6 +216,7 @@ enable_download_txt: false
   - `sort_by` - Optional sorting field. Currently supports `reactions_count` (total reactions count) and `views_count` (message views count).
   - `sort_order` - Optional sort order, supports `desc` (default) and `asc`.
   - `limit` - Optional max messages to fetch from chat history. Useful with `sort_by` to download top N messages.
+  - `file_size_min` / `file_size_max` - Optional per-chat file size filters. Values can be bytes or units such as `10MB`, `2 GB`.
   - `ids_to_retry` - `Leave it as it is.` This is used by the downloader script to keep track of all skipped downloads so that it can be downloaded during the next execution of the script.
 - **media_types** - Type of media to download, you can update which type of media you want to download it can be one or any of the available types.
 - **file_formats** - File types to download for supported media types which are `audio`, `document` and `video`. Default format is `all`, downloads all files.
@@ -237,6 +241,7 @@ enable_download_txt: false
 - **hide_file_name** - Whether to hide the web interface file name, default `false`
 - **web_host** - Web host
 - **web_port** - Web port
+- **web_auto_start** - Automatically start all configured chats when the app starts. Set to `false` to start selected chats from the Web UI.
 - **language** - Application language, the default is English (`EN`), optional `ZH`(Chinese),`RU`,`UA`
 - **web_login_secret** - Web page login password, if not configured, no login is required to access the web page
 - **log_level** - see `logging._nameToLevel`.

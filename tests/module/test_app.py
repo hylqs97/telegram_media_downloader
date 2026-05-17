@@ -6,7 +6,8 @@ import unittest
 from unittest import mock
 
 import module.app
-from module.app import Application, ChatDownloadConfig, DownloadStatus
+from module.app import Application, ChatDownloadConfig, DownloadStatus, parse_file_size
+from utils.meta_data import MetaData
 
 sys.path.append("..")  # Adds higher directory to python modules path.
 
@@ -83,6 +84,43 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(app.chat_download_config["test_chat"].sort_by, "views_count")
         self.assertEqual(app.chat_download_config["test_chat"].sort_order, "asc")
         self.assertEqual(app.chat_download_config["test_chat"].limit, 100)
+
+    def test_chat_file_size_filter(self):
+        app = Application("", "")
+        chat_config = ChatDownloadConfig()
+        chat_config.file_size_min = parse_file_size("10MB")
+        chat_config.file_size_max = parse_file_size("20 MB")
+
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(media_file_size=9)), False
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(media_file_size=15 * 1024 * 1024)),
+            True,
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(media_file_size=21 * 1024 * 1024)),
+            False,
+        )
+
+    def test_upsert_chat_config(self):
+        app = Application("", "")
+        app.config["chat"] = []
+
+        app.upsert_chat_download_config(
+            chat_id="-100123",
+            last_read_message_id=42,
+            download_filter="media_file_size > 1MB",
+            file_size_min="10MB",
+            file_size_max="20MB",
+        )
+        app.update_config(False)
+
+        chat_config = app.config["chat"][0]
+        self.assertEqual(chat_config["chat_id"], -100123)
+        self.assertEqual(chat_config["last_read_message_id"], 42)
+        self.assertEqual(chat_config["file_size_min"], 10 * 1024 * 1024)
+        self.assertEqual(chat_config["file_size_max"], 20 * 1024 * 1024)
 
     @mock.patch("__main__.__builtins__.open", new_callable=mock.mock_open)
     @mock.patch("module.app.yaml", autospec=True)

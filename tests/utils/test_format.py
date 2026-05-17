@@ -112,13 +112,15 @@ class FormatTestCase(unittest.TestCase):
 
         # GB
         self.assertEqual(get_byte_from_str("2GB"), 2 * 1024 * 1024 * 1024)
+        self.assertEqual(get_byte_from_str("1 GB"), 1024 * 1024 * 1024)
 
         # TB
         self.assertEqual(get_byte_from_str("2TB"), 2 * 1024 * 1024 * 1024 * 1024)
         self.assertEqual(get_byte_from_str("1024TB"), 1024 * 1024 * 1024 * 1024 * 1024)
+        self.assertEqual(get_byte_from_str("20 mb"), 20 * 1024 * 1024)
 
         # more str
-        self.assertEqual(get_byte_from_str("2BW"), 2)
+        self.assertEqual(get_byte_from_str("2BW"), None)
         self.assertEqual(get_byte_from_str("2WBW"), None)
 
         self.assertEqual(get_byte_from_str("2CB"), None)
