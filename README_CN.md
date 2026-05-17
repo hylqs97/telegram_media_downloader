@@ -176,7 +176,7 @@ file_formats:
   - mp4
 save_path: D:\telegram_media_downloader
 file_path_prefix:
-- chat_title
+- chat_id
 - media_datetime
 upload_drive:
   enable_upload_file: true
@@ -217,6 +217,7 @@ enable_download_txt: false
 - **file_formats** - 为支持的媒体类型（“音频”、“文档”和“视频”）下载的文件类型。默认格式为“all”，下载所有文件。
 - **save_path** - 你想存储下载文件的根目录
 - **file_path_prefix** - 存储文件子文件夹，列表的顺序不定，可以随机组合
+  - `chat_id`         - 聊天频道或者群组 ID。群组改名后该目录仍保持不变。
   - `chat_title`      - 聊天频道或者群组标题, 如果找不到标题则为配置文件中的`chat_id`
   - `media_datetime`  - 资源的发布时间
   - `media_type`      - 资源类型，类型查阅 `media_types`
@@ -256,12 +257,12 @@ python3 media_downloader.py
 
 ```yaml
 file_path_prefix:
-  - chat_title
+  - chat_id
   - media_datetime
   - media_type
 ```
 
-视频下载完整目录为：`save_path`/`chat_title`/`media_datetime`/`media_type`。
+视频下载完整目录为：`save_path`/`chat_id`/`media_datetime`/`media_type`。
 列表的顺序不定，可以随机组合。
 如果配置为空，则所有文件保存在`save_path`下。
 

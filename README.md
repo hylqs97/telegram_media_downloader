@@ -174,7 +174,7 @@ file_formats:
   - mp4
 save_path: D:\telegram_media_downloader
 file_path_prefix:
-- chat_title
+- chat_id
 - media_datetime
 upload_drive:
   # required
@@ -222,6 +222,7 @@ enable_download_txt: false
 - **file_formats** - File types to download for supported media types which are `audio`, `document` and `video`. Default format is `all`, downloads all files.
 - **save_path** - The root directory where you want to store downloaded files.
 - **file_path_prefix** - Store file subfolders, the order of the list is not fixed, can be randomly combined.
+  - `chat_id`         - Channel or group id. This is stable when the chat title changes.
   - `chat_title`      - Channel or group title, it will be chat id if not exist title.
   - `media_datetime`  - Media date.
   - `media_type`      - Media type, also see `media_types`.
@@ -259,7 +260,7 @@ python3 media_downloader.py
 All downloaded media will be stored at the root of `save_path`.
 The specific location reference is as follows:
 
-The complete directory of video download is: `save_path`/`chat_title`/`media_datetime`/`media_type`.
+The complete directory of video download is: `save_path`/`chat_id`/`media_datetime`/`media_type`.
 The order of the list is not fixed and can be randomly combined.
 If the configuration is empty, all files are saved under `save_path`.
 

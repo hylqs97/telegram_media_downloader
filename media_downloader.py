@@ -213,9 +213,8 @@ async def _get_media_meta(
 
     file_name = None
     temp_file_name = None
-    dirname = validate_title(f"{chat_id}")
-    if message.chat and message.chat.title:
-        dirname = validate_title(f"{message.chat.title}")
+    chat_title = message.chat.title if message.chat and message.chat.title else None
+    chat_dirname = validate_title(f"{chat_id}")
 
     if message.date:
         datetime_dir_name = message.date.strftime(app.date_format)
@@ -225,7 +224,9 @@ async def _get_media_meta(
     if _type in ["voice", "video_note"]:
         # pylint: disable = C0209
         file_format = media_obj.mime_type.split("/")[-1]  # type: ignore
-        file_save_path = app.get_file_save_path(_type, dirname, datetime_dir_name)
+        file_save_path = app.get_file_save_path(
+            _type, chat_id, datetime_dir_name, chat_title
+        )
         file_name = "{} - {}_{}.{}".format(
             message.id,
             _type,
@@ -233,7 +234,7 @@ async def _get_media_meta(
             file_format,
         )
         file_name = validate_title(file_name)
-        temp_file_name = os.path.join(app.temp_save_path, dirname, file_name)
+        temp_file_name = os.path.join(app.temp_save_path, chat_dirname, file_name)
 
         file_name = os.path.join(file_save_path, file_name)
     else:
@@ -270,9 +271,11 @@ async def _get_media_meta(
             app.get_file_name(message.id, file_name, caption) + file_name_suffix
         )
 
-        file_save_path = app.get_file_save_path(_type, dirname, datetime_dir_name)
+        file_save_path = app.get_file_save_path(
+            _type, chat_id, datetime_dir_name, chat_title
+        )
 
-        temp_file_name = os.path.join(app.temp_save_path, dirname, gen_file_name)
+        temp_file_name = os.path.join(app.temp_save_path, chat_dirname, gen_file_name)
 
         file_name = os.path.join(file_save_path, gen_file_name)
     return truncate_filename(file_name), truncate_filename(temp_file_name), file_format
@@ -295,12 +298,12 @@ async def save_msg_to_file(
     app, chat_id: Union[int, str], message: pyrogram.types.Message
 ):
     """Write message text into file"""
-    dirname = validate_title(
-        message.chat.title if message.chat and message.chat.title else str(chat_id)
-    )
+    chat_title = message.chat.title if message.chat and message.chat.title else None
     datetime_dir_name = message.date.strftime(app.date_format) if message.date else "0"
 
-    file_save_path = app.get_file_save_path("msg", dirname, datetime_dir_name)
+    file_save_path = app.get_file_save_path(
+        "msg", chat_id, datetime_dir_name, chat_title
+    )
     file_name = os.path.join(
         app.temp_save_path,
         file_save_path,

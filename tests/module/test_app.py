@@ -86,6 +86,21 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(app.chat_download_config["test_chat"].sort_order, "asc")
         self.assertEqual(app.chat_download_config["test_chat"].limit, 100)
 
+    def test_get_file_save_path_chat_id_prefix(self):
+        app = Application("", "")
+        app.save_path = "/root/project"
+
+        self.assertEqual(
+            app.get_file_save_path("video", -100123, "2026_05", "Renamed Chat"),
+            os.path.join("/root/project", "-100123", "2026_05"),
+        )
+
+        app.file_path_prefix = ["chat_title", "media_datetime"]
+        self.assertEqual(
+            app.get_file_save_path("video", -100123, "2026_05", "Renamed Chat"),
+            os.path.join("/root/project", "Renamed Chat", "2026_05"),
+        )
+
     def test_chat_file_size_filter(self):
         app = Application("", "")
         chat_config = ChatDownloadConfig()

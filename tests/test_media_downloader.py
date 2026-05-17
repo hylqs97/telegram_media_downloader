@@ -108,7 +108,7 @@ def rest_app(conf: dict):
     app.restart_program = False
     app.config: dict = {}
     app.app_data: dict = {}
-    app.file_path_prefix: List[str] = ["chat_title", "media_datetime"]
+    app.file_path_prefix: List[str] = ["chat_id", "media_datetime"]
     app.file_name_prefix: List[str] = ["message_id", "file_name"]
     app.file_name_prefix_split: str = " - "
     app.log_file_path = os.path.join(os.path.abspath("."), "log")
@@ -387,11 +387,11 @@ class MediaDownloaderTestCase(unittest.TestCase):
         self.assertEqual(
             (
                 platform_generic_path(
-                    "/root/project/test1/2019_07/1 - voice_2019-07-25T14_53_50.ogg"
+                    "/root/project/-123/2019_07/1 - voice_2019-07-25T14_53_50.ogg"
                 ),
                 platform_generic_path(
                     os.path.join(
-                        app.temp_save_path, "test1/1 - voice_2019-07-25T14_53_50.ogg"
+                        app.temp_save_path, "-123/1 - voice_2019-07-25T14_53_50.ogg"
                     )
                 ),
                 "ogg",
@@ -414,9 +414,9 @@ class MediaDownloaderTestCase(unittest.TestCase):
         )
         self.assertEqual(
             (
-                platform_generic_path("/root/project/test2/2019_08/2 - ADAVKJYIFV.jpg"),
+                platform_generic_path("/root/project/-123/2019_08/2 - ADAVKJYIFV.jpg"),
                 platform_generic_path(
-                    os.path.join(app.temp_save_path, "test2/2 - ADAVKJYIFV.jpg")
+                    os.path.join(app.temp_save_path, "-123/2 - ADAVKJYIFV.jpg")
                 ),
                 None,
             ),
@@ -440,11 +440,11 @@ class MediaDownloaderTestCase(unittest.TestCase):
         self.assertEqual(
             (
                 platform_generic_path(
-                    "/root/project/test2/2019_08/2 - #home #book - ADAVKJYIFV.jpg"
+                    "/root/project/-123/2019_08/2 - #home #book - ADAVKJYIFV.jpg"
                 ),
                 platform_generic_path(
                     os.path.join(
-                        app.temp_save_path, "test2/2 - #home #book - ADAVKJYIFV.jpg"
+                        app.temp_save_path, "-123/2 - #home #book - ADAVKJYIFV.jpg"
                     )
                 ),
                 None,
@@ -467,9 +467,9 @@ class MediaDownloaderTestCase(unittest.TestCase):
         )
         self.assertEqual(
             (
-                platform_generic_path("/root/project/test2/0/3 - sample_document.pdf"),
+                platform_generic_path("/root/project/-123/0/3 - sample_document.pdf"),
                 platform_generic_path(
-                    os.path.join(app.temp_save_path, "test2/3 - sample_document.pdf")
+                    os.path.join(app.temp_save_path, "-123/3 - sample_document.pdf")
                 ),
                 "pdf",
             ),
@@ -496,11 +496,11 @@ class MediaDownloaderTestCase(unittest.TestCase):
         self.assertEqual(
             (
                 platform_generic_path(
-                    "/root/project/test2/0/3-#work-sample_document.pdf"
+                    "/root/project/-123/0/3-#work-sample_document.pdf"
                 ),
                 platform_generic_path(
                     os.path.join(
-                        app.temp_save_path, "test2/3-#work-sample_document.pdf"
+                        app.temp_save_path, "-123/3-#work-sample_document.pdf"
                     )
                 ),
                 "pdf",
@@ -526,10 +526,10 @@ class MediaDownloaderTestCase(unittest.TestCase):
         self.assertEqual(
             (
                 platform_generic_path(
-                    "/root/project/test2/2021_08/4 - sample_audio.mp3"
+                    "/root/project/-123/2021_08/4 - sample_audio.mp3"
                 ),
                 platform_generic_path(
-                    os.path.join(app.temp_save_path, "test2/4 - sample_audio.mp3")
+                    os.path.join(app.temp_save_path, "-123/4 - sample_audio.mp3")
                 ),
                 "mp3",
             ),
@@ -551,8 +551,8 @@ class MediaDownloaderTestCase(unittest.TestCase):
         )
         self.assertEqual(
             (
-                platform_generic_path("/root/project/test2/2022_08/5.mp4"),
-                platform_generic_path(os.path.join(app.temp_save_path, "test2/5.mp4")),
+                platform_generic_path("/root/project/-123/2022_08/5.mp4"),
+                platform_generic_path(os.path.join(app.temp_save_path, "-123/5.mp4")),
                 "mp4",
             ),
             result,
@@ -574,9 +574,9 @@ class MediaDownloaderTestCase(unittest.TestCase):
         )
         self.assertEqual(
             (
-                platform_generic_path("/root/project/test2/2022_08/5 - test.mp4"),
+                platform_generic_path("/root/project/-123/2022_08/5 - test.mp4"),
                 platform_generic_path(
-                    os.path.join(app.temp_save_path, "test2/5 - test.mp4")
+                    os.path.join(app.temp_save_path, "-123/5 - test.mp4")
                 ),
                 "mp4",
             ),
@@ -626,12 +626,12 @@ class MediaDownloaderTestCase(unittest.TestCase):
         self.assertEqual(
             (
                 platform_generic_path(
-                    "/root/project/test2/2019_07/6 - video_note_2019-07-25T14_53_50.mp4"
+                    "/root/project/-123/2019_07/6 - video_note_2019-07-25T14_53_50.mp4"
                 ),
                 platform_generic_path(
                     os.path.join(
                         app.temp_save_path,
-                        "test2/6 - video_note_2019-07-25T14_53_50.mp4",
+                        "-123/6 - video_note_2019-07-25T14_53_50.mp4",
                     )
                 ),
                 "mp4",
@@ -941,7 +941,7 @@ class MediaDownloaderTestCase(unittest.TestCase):
         )
 
         expected_file_path = platform_generic_path(
-            "/root/project/Test Chat/2023_05/123.txt"
+            "/root/project/456/2023_05/123.txt"
         )
 
         result = self.loop.run_until_complete(save_msg_to_file(app, 456, message))
