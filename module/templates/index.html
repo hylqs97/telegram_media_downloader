@@ -86,18 +86,10 @@
 
   <script type="text/html" id="chat_config_actions">
     <div class="chat-action-bar">
-      <a class="layui-btn layui-btn-xs chat-action-btn" lay-event="start" title="Start" aria-label="Start">
-        <i class="layui-icon layui-icon-play"></i>
-      </a>
-      <a class="layui-btn layui-btn-warm layui-btn-xs chat-action-btn" lay-event="stop" title="Stop" aria-label="Stop">
-        <i class="layui-icon layui-icon-pause"></i>
-      </a>
-      <a class="layui-btn layui-btn-normal layui-btn-xs chat-action-btn" lay-event="edit" title="Edit" aria-label="Edit">
-        <i class="layui-icon layui-icon-edit"></i>
-      </a>
-      <a class="layui-btn layui-btn-danger layui-btn-xs chat-action-btn" lay-event="delete" title="Delete" aria-label="Delete">
-        <i class="layui-icon layui-icon-delete"></i>
-      </a>
+      <a class="layui-btn chat-action-btn" lay-event="start">Start</a>
+      <a class="layui-btn layui-btn-warm chat-action-btn" lay-event="stop">Stop</a>
+      <a class="layui-btn layui-btn-normal chat-action-btn" lay-event="edit">Edit</a>
+      <a class="layui-btn layui-btn-danger chat-action-btn" lay-event="delete">Delete</a>
     </div>
   </script>
 
@@ -209,9 +201,13 @@
           { field: 'file_size_min', title: 'min size', width: 110, align: 'center' },
           { field: 'file_size_max', title: 'max size', width: 110, align: 'center' },
           { field: 'download_filter', title: 'filter', minWidth: 220 },
-          { title: 'action', toolbar: '#chat_config_actions', width: 160, fixed: 'right', align: 'center' }
+          { title: 'action', toolbar: '#chat_config_actions', width: 240, fixed: 'right', align: 'center' }
         ]], done: function () {
           element.render()
+          $('div[lay-id="chat_config_list"] .chat-action-bar').each(function () {
+            $(this).closest('.layui-table-cell').addClass('chat-action-cell');
+            $(this).closest('tr').addClass('chat-action-row');
+          });
         }
       });
 

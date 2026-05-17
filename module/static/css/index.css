@@ -32,23 +32,36 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: 124px;
+  min-width: 224px;
+  padding: 4px 0;
   white-space: nowrap;
+  flex-wrap: nowrap;
+  position: relative;
+  left: 16px;
 }
 
 .chat-action-bar .chat-action-btn {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 24px;
-  line-height: 24px;
+  flex: 0 0 53px;
+  width: 53px;
+  height: 32px;
+  line-height: 32px;
   margin-left: 0 !important;
   padding: 0;
   text-align: center;
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.chat-action-bar .layui-icon {
-  margin: 0;
-  font-size: 14px;
+.chat-action-cell {
+  height: auto !important;
+  min-height: 44px;
+  line-height: normal !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+.chat-action-row td {
+  height: 52px;
 }
 
 /*# sourceMappingURL=index.css.map */
