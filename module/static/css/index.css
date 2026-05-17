@@ -27,4 +27,28 @@
   margin-left: 0;
 }
 
+.chat-action-bar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 124px;
+  white-space: nowrap;
+}
+
+.chat-action-bar .chat-action-btn {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 24px;
+  line-height: 24px;
+  margin-left: 0 !important;
+  padding: 0;
+  text-align: center;
+}
+
+.chat-action-bar .layui-icon {
+  margin: 0;
+  font-size: 14px;
+}
+
 /*# sourceMappingURL=index.css.map */
