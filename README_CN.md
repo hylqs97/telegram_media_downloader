@@ -2,24 +2,22 @@
 <h1 align="center">电报资源下载</h1>
 
 <p align="center">
-<a href="https://github.com/tangyoha/telegram_media_downloader/actions"><img alt="Unittest" src="https://github.com/tangyoha/telegram_media_downloader/workflows/Unittest/badge.svg"></a>
-<a href="https://codecov.io/gh/tangyoha/telegram_media_downloader"><img alt="Coverage Status" src="https://codecov.io/gh/tangyoha/telegram_media_downloader/branch/master/graph/badge.svg"></a>
-<a href="https://github.com/tangyoha/telegram_media_downloader/blob/master/LICENSE"><img alt="License: MIT" src="https://black.readthedocs.io/en/stable/_static/license.svg"></a>
+<a href="https://github.com/hylqs97/telegram_media_downloader/actions"><img alt="Unittest" src="https://github.com/hylqs97/telegram_media_downloader/workflows/Unittest/badge.svg"></a>
+<a href="https://codecov.io/gh/hylqs97/telegram_media_downloader"><img alt="Coverage Status" src="https://codecov.io/gh/hylqs97/telegram_media_downloader/branch/master/graph/badge.svg"></a>
+<a href="https://github.com/hylqs97/telegram_media_downloader/blob/master/LICENSE"><img alt="License: MIT" src="https://black.readthedocs.io/en/stable/_static/license.svg"></a>
 <a href="https://github.com/python/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
-<a href="https://github.com/tangyoha/telegram_media_downloader/releases">
-<img alt="Code style: black" src="https://img.shields.io/github/v/release/tangyoha/telegram_media_downloader?display_name=tag">
+<a href="https://github.com/hylqs97/telegram_media_downloader/releases">
+<img alt="Code style: black" src="https://img.shields.io/github/v/release/hylqs97/telegram_media_downloader?display_name=tag">
 </a>
 </p>
 
 <h3 align="center">
   <a href="./README.md">English</a><span> · </span>
-  <a href="https://github.com/tangyoha/telegram_media_downloader/discussions/categories/ideas">新功能请求</a>
+  <a href="https://github.com/hylqs97/telegram_media_downloader/discussions/categories/ideas">新功能请求</a>
   <span> · </span>
-  <a href="https://github.com/tangyoha/telegram_media_downloader/issues">报告bug</a>
+  <a href="https://github.com/hylqs97/telegram_media_downloader/issues">报告bug</a>
   <span> · </span>
-  帮助: <a href="https://github.com/tangyoha/telegram_media_downloader/discussions">讨论</a>
-  <span> & </span>
-  <a href="https://t.me/TeegramMediaDownload">电报讨论群</a>
+  帮助: <a href="https://github.com/hylqs97/telegram_media_downloader/discussions">讨论</a>
 </h3>
 
 ## 概述
@@ -42,7 +40,7 @@
 
 ### 机器人
 
-> 需要配置bot_token,具体参考[文档](https://github.com/tangyoha/telegram_media_downloader/wiki/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8%E6%9C%BA%E5%99%A8%E4%BA%BA%E4%B8%8B%E8%BD%BD)
+> 需要配置bot_token，具体参考[项目 Wiki](https://github.com/hylqs97/telegram_media_downloader/wiki/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8%E6%9C%BA%E5%99%A8%E4%BA%BA%E4%B8%8B%E8%BD%BD)
 
 
 <img alt="Code style: black" style="width:60%; high:30%; " src="./screenshot/bot.gif"/>
@@ -56,14 +54,14 @@
 
 ### 版本发布计划
 
-* [v2.2.0](https://github.com/tangyoha/telegram_media_downloader/issues/2)
+* [v2.2.0](https://github.com/hylqs97/telegram_media_downloader/issues/2)
 
 ## 安装
 
 对于具有 `make` 可用性的 *nix 操作系统发行版
 
 ```sh
-git clone https://github.com/tangyoha/telegram_media_downloader.git
+git clone https://github.com/hylqs97/telegram_media_downloader.git
 cd telegram_media_downloader
 make install
 ```
@@ -71,34 +69,33 @@ make install
 对于没有内置 `make` 的 Windows
 
 ```sh
-git clone https://github.com/tangyoha/telegram_media_downloader.git
+git clone https://github.com/hylqs97/telegram_media_downloader.git
 cd telegram_media_downloader
 pip3 install -r requirements.txt
 ```
 ## Docker容器
-> 更详细安装教程请查看wiki
+> 更详细安装教程请查看项目 Wiki
 
 确保安装了 **docker** 和 **docker-compose**
 ```sh
-docker pull tangyoha/telegram_media_downloader:latest
-mkdir -p ~/app && mkdir -p ~/app/log/ && cd ~/app
-wget https://raw.githubusercontent.com/tangyoha/telegram_media_downloader/blob/master/docker-compose.yaml -O docker-compose.yaml
-wget https://raw.githubusercontent.com/tangyoha/telegram_media_downloader/blob/master/config.yaml -O config.yaml
-wget https://raw.githubusercontent.com/tangyoha/telegram_media_downloader/blob/master/data.yaml -O data.yaml
-# vi config.yaml and docker-compose.yaml
+git clone https://github.com/hylqs97/telegram_media_downloader.git
+cd telegram_media_downloader
+mkdir -p downloads log sessions temp
+
+# 如有需要请编辑 config.yaml
 vi config.yaml
 
 # 第一次需要前台启动
 # 输入你的电话号码和密码，然后退出(ctrl + c)
+docker-compose build
 docker-compose run --rm telegram_media_downloader
 
 # 执行完以上操作后，后面的所有启动都在后台启动
 docker-compose up -d
 
-＃ 升级
-docker pull tangyoha/telegram_media_downloader:latest
-cd ~/app
-docker-compose down
+# 升级
+git pull
+docker-compose build
 docker-compose up -d
 ```
 
@@ -201,7 +198,7 @@ enable_download_txt: false
 - **bot_token** - 你的机器人凭证
 - **chat** -  多频道
   - `chat_id` -  您要下载媒体的聊天/频道的 ID。你从上述步骤中得到的。
-  - `download_filter` - 下载过滤器, 查阅 [如何使用过滤器](https://github.com/tangyoha/telegram_media_downloader/wiki/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8%E8%BF%87%E6%BB%A4%E5%99%A8)
+  - `download_filter` - 下载过滤器，查阅 [如何使用过滤器](https://github.com/hylqs97/telegram_media_downloader/wiki/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8%E8%BF%87%E6%BB%A4%E5%99%A8)
   - `last_read_message_id` -如果这是您第一次阅读频道，请将其设置为“0”，或者如果您已经使用此脚本下载媒体，它将有一些数字，这些数字会在脚本成功执行后自动更新。不要改变它。
   - `sort_by` - 可选排序字段，当前支持 `reactions_count`（按消息总点赞/互动数排序）和 `views_count`（按消息阅读数排序）。
   - `sort_order` - 可选排序方向，支持 `desc`（默认）和 `asc`。
@@ -220,7 +217,7 @@ enable_download_txt: false
   - `enable_upload_file` - [必填]启用上传文件，默认为`false`
   - `remote_dir` - [必填]你上传的地方
   - `upload_adapter` - [必填]上传文件适配器，可以为`rclone`,`aligo`。如果为`rclone`，则支持rclone所有支持上传的服务器，如果为aligo，则支持上传阿里云盘
-  - `rclone_path`，如果配置`upload_adapter`为`rclone`则为必填，`rclone`的可执行目录，查阅 [如何使用rclone](https://github.com/tangyoha/telegram_media_downloader/wiki/Rclone)
+  - `rclone_path`，如果配置`upload_adapter`为`rclone`则为必填，`rclone`的可执行目录，查阅 [如何使用 rclone](https://github.com/hylqs97/telegram_media_downloader/wiki/Rclone)
   - `before_upload_file_zip` - 上传前压缩文件，默认为`false`
   - `after_upload_file_delete` - 上传成功后删除文件，默认为`false`
 - **file_name_prefix** - 自定义文件名称,使用和 **file_path_prefix** 一样
@@ -290,9 +287,3 @@ proxy:
 帮助我们保持 Telegram Media Downloader 的开放性和包容性。请阅读并遵守我们的[行为准则](./CODE_OF_CONDUCT.md)。
 
 
-### 赞助
-
-<p>
-<img alt="Code style: black" style="width:30%" src="./screenshot/alipay.JPG">
-<img alt="Code style: black" style="width:30%" src="./screenshot/wechat.JPG">
-</p>
