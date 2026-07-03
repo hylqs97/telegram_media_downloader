@@ -225,6 +225,8 @@ def _chat_config_rows():
                 "chat_id": str(chat_id),
                 "last_read_message_id": chat_config.last_read_message_id,
                 "download_filter": chat_config.download_filter or "",
+                "start_date": chat_config.start_date or "",
+                "end_date": chat_config.end_date or "",
                 "file_size_min": (
                     format_byte(chat_config.file_size_min)
                     if chat_config.file_size_min is not None
@@ -284,6 +286,8 @@ def save_chat_config():
             download_filter=request.form.get("download_filter", ""),
             file_size_min=request.form.get("file_size_min", ""),
             file_size_max=request.form.get("file_size_max", ""),
+            start_date=request.form.get("start_date", ""),
+            end_date=request.form.get("end_date", ""),
             origin_chat_id=origin_chat_id,
         )
         _application.update_config()

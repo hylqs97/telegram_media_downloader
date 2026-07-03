@@ -4,64 +4,124 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>login</title>
+  <title>Login · Telegram Media Downloader</title>
   <link href="{{ url_for('static', filename='login/css/index.css') }}" rel="stylesheet">
 </head>
 
-<body>
-  <div class="main">
-    <div class="content">
-      <div class="logo">
-        <img src="{{ url_for('static', filename='login/images/login.svg') }}" alt="">
-        <h1 class="title">Telegram Media Downloader</h1>
-        <div class="tips">enter your password.</div>
+<body class="login-page">
+  <div class="login-shell">
+    <section class="login-hero">
+      <span class="eyebrow">Secure access</span>
+      <h1>Telegram Media Downloader</h1>
+      <p>Sign in to manage queue controls, chat filters, and the live download dashboard from one modern workspace.</p>
+      <ul class="login-highlights">
+        <li>Encrypted password submission</li>
+        <li>Responsive browser dashboard</li>
+        <li>Fast controls for active jobs</li>
+      </ul>
+    </section>
+
+    <section class="login-card">
+      <div class="login-card__brand">
+        <img src="{{ url_for('static', filename='login/images/login.svg') }}" alt="Telegram Media Downloader logo">
+        <div>
+          <h2>Welcome back</h2>
+          <p>Enter the admin password to continue.</p>
+        </div>
       </div>
-      <div class="password-input">
-        <input type="password" class="input-p" placeholder="please enter your password" id="password">
-        <div class="tip">Your password</div>
-      </div>
-      <button class="confirm-btn" onclick="login()">confirm</button>
-    </div>
+
+      <label class="login-field" for="password">
+        <span>Password</span>
+        <div class="password-row">
+          <input type="password" class="input-p" placeholder="Enter your password" id="password"
+            autocomplete="current-password">
+          <button type="button" class="password-toggle" id="togglePassword">Show</button>
+        </div>
+        <small class="field-note">The password is AES-encrypted before it is sent to the server.</small>
+      </label>
+
+      <button class="confirm-btn" id="login_button" type="button" onclick="login()">Sign in</button>
+      <p class="login-footer-note">Tip: press Enter to submit.</p>
+    </section>
   </div>
 
-  <script src="../static/layui/layui.js"></script>
-  <script src="../static/aes/crypto-js-master/crypto-js.js"></script>
-  <script src="../static/request/index.js"></script>
+  <script src="{{ url_for('static', filename='layui/layui.js') }}"></script>
+  <script src="{{ url_for('static', filename='aes/crypto-js-master/crypto-js.js') }}"></script>
+  <script src="{{ url_for('static', filename='request/index.js') }}"></script>
   <script>
-    const $ = layui.$
-    const layer = layui.layer
+    const $ = layui.$;
+    const layer = layui.layer;
+    const passwordInput = $('#password');
+    const loginButton = $('#login_button');
+    const togglePasswordButton = $('#togglePassword');
+    let isSubmitting = false;
 
-    //加密方法
     const encrypt = (word) => {
-      const key = CryptoJS.enc.Utf8.parse("1234123412ABCDEF");
+      const key = CryptoJS.enc.Utf8.parse('1234123412ABCDEF');
       const iv = CryptoJS.enc.Utf8.parse('ABCDEF1234123412');
-      let srcs = CryptoJS.enc.Utf8.parse(word);
-      let encrypted = CryptoJS.AES.encrypt(srcs, key, { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
-      let hexStr = encrypted.ciphertext.toString();
-      let base64Str = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Hex.parse(hexStr));
-      return base64Str;
-    }
+      const srcs = CryptoJS.enc.Utf8.parse(word);
+      const encrypted = CryptoJS.AES.encrypt(srcs, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+      });
+      const hexStr = encrypted.ciphertext.toString();
+      return CryptoJS.enc.Base64.stringify(CryptoJS.enc.Hex.parse(hexStr));
+    };
+
+    const setSubmitting = (submitting) => {
+      isSubmitting = submitting;
+      loginButton.prop('disabled', submitting);
+      loginButton.text(submitting ? 'Signing in…' : 'Sign in');
+    };
 
     const login = () => {
-      const pValue = $('#password').val()
+      if (isSubmitting) {
+        return;
+      }
+
+      const pValue = passwordInput.val();
 
       if (!pValue) {
-        layer.msg('please enter your password!')
-        return
-      } else {
-        const encryptData = encrypt(pValue)
-        request('login', 'post', { password: encryptData }).then((res) => {
-          const { code } = res
-          if (code === '1') {
-            const { host } = window.location;
-            window.location.href = 'http://' + host
-          } else {
-            layer.msg('password error!')
-          }
-          $('#password').val('')
-        })
+        layer.msg('Please enter your password!');
+        passwordInput.trigger('focus');
+        return;
       }
-    }
+
+      setSubmitting(true);
+      request('login', 'post', { password: encrypt(pValue) })
+        .then((res) => {
+          const code = String(res.code);
+          if (code === '1') {
+            window.location.href = window.location.origin + '/';
+          } else {
+            layer.msg('Password error!');
+            passwordInput.val('');
+            passwordInput.trigger('focus');
+          }
+        })
+        .catch(() => {
+          layer.msg('Login request failed. Please try again.');
+        })
+        .finally(() => {
+          setSubmitting(false);
+        });
+    };
+
+    passwordInput.on('keydown', function (event) {
+      if (event.key === 'Enter') {
+        login();
+      }
+    });
+
+    togglePasswordButton.on('click', function () {
+      const isHidden = passwordInput.attr('type') === 'password';
+      passwordInput.attr('type', isHidden ? 'text' : 'password');
+      togglePasswordButton.text(isHidden ? 'Hide' : 'Show');
+      passwordInput.trigger('focus');
+    });
+
+    passwordInput.trigger('focus');
   </script>
 </body>
 

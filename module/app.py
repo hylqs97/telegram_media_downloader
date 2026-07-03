@@ -6,7 +6,7 @@ import time
 from asyncio import Lock
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, List, Optional, Union
 
@@ -317,6 +317,10 @@ class ChatDownloadConfig:
         self.sort_order: str = "desc"
         self.file_size_min: Optional[int] = None
         self.file_size_max: Optional[int] = None
+        self.start_date: Optional[str] = None
+        self.end_date: Optional[str] = None
+        self.start_date_time: Optional[datetime] = None
+        self.end_date_exclusive: Optional[datetime] = None
 
 
 def get_config(config, key, default=None, val_type=str, verbose=True):
@@ -380,6 +384,52 @@ def parse_file_size(value) -> Optional[int]:
         raise ValueError(f"invalid file size: {value}")
 
     return file_size
+
+
+def parse_chat_date(value, field_name: str) -> Optional[str]:
+    """Parse and normalize optional chat date values to YYYY-MM-DD."""
+    if value is None or value == "":
+        return None
+
+    value_text = str(value).strip()
+    if not value_text:
+        return None
+
+    for date_format in ("%Y-%m-%d", "%Y.%m.%d", "%Y/%m/%d"):
+        try:
+            parsed_date = datetime.strptime(value_text, date_format)
+            return parsed_date.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    raise ValueError(f"invalid {field_name}: {value}")
+
+
+def apply_chat_date_range(chat_config: ChatDownloadConfig, start_date, end_date):
+    """Normalize, validate, and cache one chat date range."""
+    normalized_start = parse_chat_date(start_date, "start_date")
+    normalized_end = parse_chat_date(end_date, "end_date")
+
+    start_date_time = (
+        datetime.strptime(normalized_start, "%Y-%m-%d") if normalized_start else None
+    )
+    end_date_time = (
+        datetime.strptime(normalized_end, "%Y-%m-%d") if normalized_end else None
+    )
+
+    if (
+        start_date_time is not None
+        and end_date_time is not None
+        and start_date_time > end_date_time
+    ):
+        raise ValueError("start_date cannot be greater than end_date")
+
+    chat_config.start_date = normalized_start
+    chat_config.end_date = normalized_end
+    chat_config.start_date_time = start_date_time
+    chat_config.end_date_exclusive = (
+        end_date_time + timedelta(days=1) if end_date_time is not None else None
+    )
 
 
 class Application:
@@ -653,6 +703,11 @@ class Application:
                     chat_config.file_size_max = parse_file_size(
                         item.get("file_size_max")
                     )
+                    apply_chat_date_range(
+                        chat_config,
+                        item.get("start_date"),
+                        item.get("end_date"),
+                    )
         elif _config.get("chat_id"):
             # Compatible with lower versions
             self._chat_id = normalize_chat_id(_config["chat_id"])
@@ -717,6 +772,8 @@ class Application:
         download_filter: str = "",
         file_size_min=None,
         file_size_max=None,
+        start_date=None,
+        end_date=None,
         origin_chat_id: Union[int, str, None] = None,
     ) -> Union[int, str]:
         """Create or update a web-managed chat config."""
@@ -734,6 +791,7 @@ class Application:
         chat_config.download_filter = replace_date_time(download_filter or "")
         chat_config.file_size_min = parse_file_size(file_size_min)
         chat_config.file_size_max = parse_file_size(file_size_max)
+        apply_chat_date_range(chat_config, start_date, end_date)
         if (
             chat_config.file_size_min is not None
             and chat_config.file_size_max is not None
@@ -777,6 +835,10 @@ class Application:
             chat_config["file_size_min"] = value.file_size_min
         if value.file_size_max is not None:
             chat_config["file_size_max"] = value.file_size_max
+        if value.start_date:
+            chat_config["start_date"] = value.start_date
+        if value.end_date:
+            chat_config["end_date"] = value.end_date
 
         return chat_config
 
@@ -981,6 +1043,23 @@ class Application:
             if (
                 download_config.file_size_max is not None
                 and meta_data.media_file_size > download_config.file_size_max
+            ):
+                return False
+
+        if (
+            download_config.start_date_time is not None
+            or download_config.end_date_exclusive is not None
+        ):
+            if meta_data.message_date is None:
+                return False
+            if (
+                download_config.start_date_time is not None
+                and meta_data.message_date < download_config.start_date_time
+            ):
+                return False
+            if (
+                download_config.end_date_exclusive is not None
+                and meta_data.message_date >= download_config.end_date_exclusive
             ):
                 return False
 

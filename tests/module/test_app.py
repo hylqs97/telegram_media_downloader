@@ -3,6 +3,7 @@
 import os
 import sys
 import unittest
+from datetime import datetime
 from unittest import mock
 
 import module.app
@@ -129,6 +130,8 @@ class AppTestCase(unittest.TestCase):
             download_filter="media_file_size > 1MB",
             file_size_min="10MB",
             file_size_max="20MB",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
         )
         app.update_config(False)
 
@@ -137,6 +140,45 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(chat_config["last_read_message_id"], 42)
         self.assertEqual(chat_config["file_size_min"], 10 * 1024 * 1024)
         self.assertEqual(chat_config["file_size_max"], 20 * 1024 * 1024)
+        self.assertEqual(chat_config["start_date"], "2024-01-01")
+        self.assertEqual(chat_config["end_date"], "2024-01-31")
+
+    def test_chat_date_range_filter(self):
+        app = Application("", "")
+        chat_config = ChatDownloadConfig()
+        app.upsert_chat_download_config(
+            chat_id="test_chat",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+        )
+        chat_config = app.chat_download_config["test_chat"]
+
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(message_date=datetime(2023, 12, 31))),
+            False,
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(message_date=datetime(2024, 1, 1))),
+            True,
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(message_date=datetime(2024, 1, 31, 23, 59, 59))),
+            True,
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(message_date=datetime(2024, 2, 1))),
+            False,
+        )
+
+    def test_chat_date_range_validation(self):
+        app = Application("", "")
+        self.assertRaises(
+            ValueError,
+            app.upsert_chat_download_config,
+            "chat_1",
+            start_date="2024-02-01",
+            end_date="2024-01-31",
+        )
 
     @mock.patch("__main__.__builtins__.open", new_callable=mock.mock_open)
     @mock.patch("module.app.yaml", autospec=True)

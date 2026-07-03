@@ -1,113 +1,205 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Telegram Media Downloader</title>
-  <link href="static/layui/css/layui.css" rel="stylesheet">
-  <link href="static/css/index.css" rel="stylesheet">
-  <style>
-    body {
-      padding: 6px 16px;
-    }
-  </style>
+  <link href="{{ url_for('static', filename='layui/css/layui.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/index.css') }}" rel="stylesheet">
 </head>
 
-<body>
-  <div class="layui-tab" lay-filter="telegram_media_downloader">
-    <div class="header-title layui-tab-brief">
-      <ul class="layui-tab-title">
-        <li class="layui-this">Downloading</li>
-        <li>Downloaded</li>
-        <li>Chats</li>
-      </ul>
-      <div class="stop-btn" id="download_state" data-value="{{ download_state }}" onclick="download_state_change(this)"> {{ download_state }} </div>
-    </div>
-    <div class="layui-tab-content" style="padding: 0;">
-      <div class="layui-tab-item layui-show">
-        <table class="layui-hide" id="download_list" lay-filter="download_list"></table>
+<body class="dashboard-page">
+  <div class="dashboard-shell">
+    <header class="hero-card">
+      <div class="hero-copy">
+        <span class="eyebrow">Realtime download control</span>
+        <h1>Telegram Media Downloader</h1>
+        <p>Monitor active jobs, review completed files, and manage chat rules from one calm, focused workspace.</p>
       </div>
-      <div class="layui-tab-item">
-        <table class="layui-hide" id="already_download_list" lay-filter="already_download_list"></table>
-      </div>
-      <div class="layui-tab-item">
-        <form class="layui-form chat-config-form" lay-filter="chat_config_form">
-          <input type="hidden" name="origin_chat_id" id="origin_chat_id">
-          <div class="layui-row layui-col-space8">
-            <div class="layui-col-md2 layui-col-sm6">
-              <input type="text" name="chat_id" required lay-verify="required" placeholder="chat id" autocomplete="off" class="layui-input">
-            </div>
-            <div class="layui-col-md2 layui-col-sm6">
-              <input type="number" name="last_read_message_id" placeholder="last message id" autocomplete="off" class="layui-input">
-            </div>
-            <div class="layui-col-md2 layui-col-sm6">
-              <input type="text" name="file_size_min" placeholder="min file size" autocomplete="off" class="layui-input">
-            </div>
-            <div class="layui-col-md2 layui-col-sm6">
-              <input type="text" name="file_size_max" placeholder="max file size" autocomplete="off" class="layui-input">
-            </div>
-            <div class="layui-col-md2 layui-col-sm8">
-              <input type="text" name="download_filter" placeholder="download filter" autocomplete="off" class="layui-input">
-            </div>
-            <div class="layui-col-md2 layui-col-sm4 chat-config-actions">
-              <button class="layui-btn layui-btn-sm" lay-submit lay-filter="save_chat_config">Save</button>
-              <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" id="reset_chat_config">New</button>
-            </div>
-          </div>
-        </form>
-        <table class="layui-hide" id="chat_config_list" lay-filter="chat_config_list"></table>
-      </div>
-    </div>
-  </div>
-
-  <div class="layui-footer">
-    <div class="layui-row layui-col-space1">
-      <div class="layui-col-md2">
-        <p>Telegram Media Downloader V <b id="app_version" style="color: #009688;">undefined</b>
-      </div>
-      <div class="layui-col-md7">
-      </div>
-      <div class="layui-col-md3">
-        <div style="padding: 5px; float: right;">
-          <!-- <i class="layui-icon layui-icon-upload-circle" style="font-size: 16px; color: #1E9FFF; font-weight: 700;">
-            <i id="upload_speed_title" style="color: black;"> 0.00 B/s </i>
-          </i> -->
-
-          <i class="layui-icon layui-icon-download-circle"
-            style="font-size: 16px; color: #5FB878; font-weight: 700; margin-left: 15px;">
-            <i id="download_speed_title" style="color: black;"> 0.00 B/s </i>
-          </i>
-
+      <div class="hero-actions">
+        <button type="button" class="state-toggle" id="download_state" data-value="{{ download_state }}"
+          onclick="download_state_change(this)">
+          <span class="state-toggle__label">Queue</span>
+          <span class="state-toggle__value">{{ download_state }}</span>
+          <span class="state-toggle__hint">{{ 'Resume queue' if download_state == 'pause' else 'Pause queue' }}</span>
+        </button>
+        <div class="hero-meta">
+          <span class="meta-pill">Version <b id="app_version">—</b></span>
+          <span class="meta-pill">Synced <b id="last_refresh_title">—</b></span>
         </div>
       </div>
-    </div>
+    </header>
+
+    <section class="stats-grid" aria-label="Download summary">
+      <article class="stat-card stat-card--active">
+        <span class="stat-card__label">Active downloads</span>
+        <strong id="active_download_count">0</strong>
+        <span class="stat-card__hint">Currently in progress</span>
+      </article>
+      <article class="stat-card stat-card--done">
+        <span class="stat-card__label">Completed files</span>
+        <strong id="finished_download_count">0</strong>
+        <span class="stat-card__hint">Moved to the archive</span>
+      </article>
+      <article class="stat-card stat-card--chat">
+        <span class="stat-card__label">Managed chats</span>
+        <strong id="chat_config_count">0</strong>
+        <span class="stat-card__hint">Rules currently saved</span>
+      </article>
+      <article class="stat-card stat-card--speed">
+        <span class="stat-card__label">Total speed</span>
+        <strong id="download_speed_title">0.00 B/s</strong>
+        <span class="stat-card__hint">Combined transfer rate</span>
+      </article>
+    </section>
+
+    <main class="workspace-card">
+      <div class="workspace-header">
+        <div>
+          <p class="section-kicker">Workspace</p>
+          <h2>Live queue and chat management</h2>
+          <p>Active jobs refresh every second, finished jobs move to the archive, and chat settings update as you edit them.</p>
+        </div>
+        <div class="workspace-meta">
+          <span class="section-badge">
+            <i class="layui-icon layui-icon-refresh-1"></i>
+            <b id="last_refresh_title_inline">Waiting for first refresh…</b>
+          </span>
+        </div>
+      </div>
+
+      <div class="layui-tab dashboard-tabs" lay-filter="telegram_media_downloader">
+        <ul class="layui-tab-title dashboard-tab-title">
+          <li class="layui-this"><i class="layui-icon layui-icon-transfer"></i><span>Downloading</span></li>
+          <li><i class="layui-icon layui-icon-list"></i><span>Downloaded</span></li>
+          <li><i class="layui-icon layui-icon-template-1"></i><span>Chats</span></li>
+        </ul>
+        <div class="layui-tab-content dashboard-tab-content">
+          <section class="layui-tab-item layui-show">
+            <div class="table-card">
+              <div class="table-card__header">
+                <div>
+                  <h3>Live downloads</h3>
+                  <p>Shows only active rows; completed items move to the archive automatically.</p>
+                </div>
+              </div>
+              <table class="layui-hide" id="download_list" lay-filter="download_list"></table>
+            </div>
+          </section>
+
+          <section class="layui-tab-item">
+            <div class="table-card">
+              <div class="table-card__header">
+                <div>
+                  <h3>Completed downloads</h3>
+                  <p>Everything that has reached 100% is listed here with its final save path.</p>
+                </div>
+              </div>
+              <table class="layui-hide" id="already_download_list" lay-filter="already_download_list"></table>
+            </div>
+          </section>
+
+          <section class="layui-tab-item">
+            <div class="table-card table-card--stacked">
+              <div class="table-card__header table-card__header--split">
+                <div>
+                  <h3>Chat configuration</h3>
+                  <p>Create or edit download rules, then start or stop a chat with one click.</p>
+                </div>
+                <span class="section-badge section-badge--soft">
+                  <i class="layui-icon layui-icon-engine"></i>
+                  <b>Auto refresh enabled while tab is open</b>
+                </span>
+              </div>
+
+              <form class="layui-form chat-config-form" lay-filter="chat_config_form">
+                <input type="hidden" name="origin_chat_id" id="origin_chat_id">
+                <div class="chat-form-grid">
+                  <label class="field-stack">
+                    <span>Chat ID</span>
+                    <input type="text" name="chat_id" required lay-verify="required" placeholder="Required chat identifier"
+                      autocomplete="off" class="layui-input">
+                  </label>
+                  <label class="field-stack">
+                    <span>Last message ID</span>
+                    <input type="number" name="last_read_message_id" placeholder="Optional checkpoint"
+                      autocomplete="off" class="layui-input">
+                  </label>
+                  <label class="field-stack">
+                    <span>Minimum size</span>
+                    <input type="text" name="file_size_min" placeholder="Example: 10 MB"
+                      autocomplete="off" class="layui-input">
+                  </label>
+                  <label class="field-stack">
+                    <span>Maximum size</span>
+                    <input type="text" name="file_size_max" placeholder="Example: 500 MB"
+                      autocomplete="off" class="layui-input">
+                  </label>
+                  <label class="field-stack">
+                    <span>Start date</span>
+                    <input type="text" id="start_date_input" name="start_date" autocomplete="off" class="layui-input date-input" placeholder="YYYY-MM-DD">
+                  </label>
+                  <label class="field-stack">
+                    <span>End date</span>
+                    <input type="text" id="end_date_input" name="end_date" autocomplete="off" class="layui-input date-input" placeholder="YYYY-MM-DD">
+                  </label>
+                  <label class="field-stack field-stack--wide">
+                    <span>Download filter</span>
+                    <input type="text" name="download_filter" placeholder="Keyword or rule expression"
+                      autocomplete="off" class="layui-input">
+                  </label>
+                  <div class="field-stack field-stack--actions">
+                    <span class="field-stack__spacer">Actions</span>
+                    <div class="chat-config-actions">
+                      <button class="layui-btn layui-btn-sm" lay-submit lay-filter="save_chat_config">Save</button>
+                      <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" id="reset_chat_config">New</button>
+                    </div>
+                  </div>
+                </div>
+              </form>
+
+              <table class="layui-hide" id="chat_config_list" lay-filter="chat_config_list"></table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="page-footer">
+      <span>Telegram Media Downloader v<b id="app_version_footer">—</b></span>
+      <span>Realtime download speed: <b id="download_speed_title_footer">0.00 B/s</b></span>
+    </footer>
   </div>
 
   <script type="text/html" id="chat_config_actions">
     <div class="chat-action-bar">
-      <a class="layui-btn chat-action-btn" lay-event="start">Start</a>
-      <a class="layui-btn layui-btn-warm chat-action-btn" lay-event="stop">Stop</a>
-      <a class="layui-btn layui-btn-normal chat-action-btn" lay-event="edit">Edit</a>
-      <a class="layui-btn layui-btn-danger chat-action-btn" lay-event="delete">Delete</a>
+      <a class="layui-btn layui-btn-sm chat-action-btn chat-action-btn--start" lay-event="start">Start</a>
+      <a class="layui-btn layui-btn-sm layui-btn-warm chat-action-btn" lay-event="stop">Stop</a>
+      <a class="layui-btn layui-btn-sm layui-btn-normal chat-action-btn" lay-event="edit">Edit</a>
+      <a class="layui-btn layui-btn-sm layui-btn-danger chat-action-btn" lay-event="delete">Delete</a>
     </div>
   </script>
 
-  <script src="static/layui/layui.js"></script>
+  <script src="{{ url_for('static', filename='layui/layui.js') }}"></script>
   <script>
-
-    layui.use(['table', 'element', 'form'], function () {
+    layui.use(['table', 'element', 'form', 'laydate'], function () {
       var table = layui.table;
       var element = layui.element;
       var layer = layui.layer;
       var form = layui.form;
+      var laydate = layui.laydate;
       var $ = layui.$;
-      var already_download_list_data = new Array()
-      var download_list_table_data = new Array()
-      var chat_config_table_data = new Array()
+
+      var already_download_list_data = [];
+      var download_list_table_data = [];
+      var chat_config_table_data = [];
+      var update_download_list_int = null;
+      var update_already_download_list_int = null;
+      var update_chat_config_int = null;
 
       function text_width(value) {
-        var text = value == null ? "" : String(value);
+        var text = value == null ? '' : String(value);
         var width = 0;
         for (var i = 0; i < text.length; i++) {
           width += text.charCodeAt(i) > 255 ? 14 : 7;
@@ -119,7 +211,7 @@
         if (column.contentWidth) {
           return column.contentWidth;
         }
-        var maxWidth = text_width(column.title || column.field || "");
+        var maxWidth = text_width(column.title || column.field || '');
         if (column.field) {
           for (var i = 0; i < data.length; i++) {
             maxWidth = Math.max(maxWidth, text_width(data[i][column.field]));
@@ -162,284 +254,461 @@
         });
       }
 
-      $.ajax({
-        url: "get_app_version"
-        , type: "get"
-        , async: false
-        , dataType: "text"
-        , success: function (result) {
-          $("#app_version").html(result)
-        }
-      });
+      function escape_html(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
 
-      download_state_change = function(e) {
+      function touch_refresh_time() {
+        var now = new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        $('#last_refresh_title').text(now);
+        $('#last_refresh_title_inline').text(now);
+      }
+
+      function update_summary_cards() {
+        $('#active_download_count').text(download_list_table_data.length);
+        $('#finished_download_count').text(already_download_list_data.length);
+        $('#chat_config_count').text(chat_config_table_data.length);
+        $('#download_speed_title_footer').text($('#download_speed_title').text());
+        $('#app_version_footer').text($('#app_version').text());
+      }
+
+      function sync_download_state_button(value) {
+        var button = $('#download_state');
+        button.attr('data-value', value);
+        button.find('.state-toggle__value').text(value);
+        button.find('.state-toggle__hint').text(value === 'pause' ? 'Resume queue' : 'Pause queue');
+        button.toggleClass('is-paused', value === 'pause');
+      }
+
+      function load_app_version() {
         $.ajax({
-        url: "set_download_state?state=" + e.dataset.value
-        , type: "post"
-        , async: false
-        , dataType: "text"
-        , success: function (result) {
-          $("#download_state").html(result)
-          e.dataset.value=result
-        }
-      });
-    }
+          url: 'get_app_version',
+          type: 'get',
+          dataType: 'text',
+          success: function (result) {
+            $('#app_version').text(result);
+            $('#app_version_footer').text(result);
+          }
+        });
+      }
+
+      window.download_state_change = function (button) {
+        $.ajax({
+          url: 'set_download_state?state=' + button.dataset.value,
+          type: 'post',
+          dataType: 'text',
+          success: function (result) {
+            sync_download_state_button(result);
+            update_summary_cards();
+            touch_refresh_time();
+          }
+        });
+      };
+
+      function progress_bar(value, active_class) {
+        return '<div class="layui-progress layui-progress-big" lay-showpercent="true"><div class="layui-progress-bar ' + active_class + '" lay-percent="' + value + '%"></div></div>';
+      }
+
+      function format_status_badge(value) {
+        var status = value || 'idle';
+        return '<span class="status-pill status-pill--' + status + '">' + escape_html(status) + '</span>';
+      }
 
       var downloadListColumns = [
-        { field: 'chat', title: 'chat', minContentWidth: 72 },
-        { field: 'id', title: 'id', minContentWidth: 54 },
-        { field: 'filename', title: 'file name', align: 'center', minContentWidth: 120, maxContentWidth: 620 },
-        { field: 'total_size', title: 'total byte', align: 'center', minContentWidth: 90 },
+        { field: 'chat', title: 'chat', minContentWidth: 92 },
+        { field: 'id', title: 'id', minContentWidth: 58 },
+        { field: 'filename', title: 'file name', align: 'center', minContentWidth: 160, maxContentWidth: 640, templet: function (d) { return '<span class="table-ellipsis" title="' + escape_html(d.filename) + '">' + escape_html(d.filename) + '</span>'; } },
+        { field: 'total_size', title: 'total size', align: 'center', minContentWidth: 92 },
         {
-          field: 'download_progress', title: 'download progress', align: 'center', minContentWidth: 150, templet: function (d) {
-            var ys = '';
-            if (30 < d.download_progress && d.download_progress < 100) {
-              ys = 'layui-bg-blue'
-            } else if (0 < d.download_progress && d.download_progress <= 30) {
-              ys = 'layui-bg-red'
+          field: 'download_progress',
+          title: 'progress',
+          align: 'center',
+          minContentWidth: 180,
+          templet: function (d) {
+            var progress = Number(d.download_progress) || 0;
+            var barClass = 'layui-bg-blue';
+            if (progress > 0 && progress <= 30) {
+              barClass = 'layui-bg-red';
+            } else if (progress > 30 && progress < 100) {
+              barClass = 'layui-bg-blue';
+            } else if (progress === 100) {
+              barClass = 'layui-bg-green';
             }
-            else if (100 == d.download_progress) {
-              ys = 'layui-bg-green'
-            }
-            return '<div class="layui-progress layui-progress-big" lay-showpercent="true"  lay-filter="down-' + d.id + '"><div class="layui-progress-bar ' + ys + '" lay-percent="' + d.download_progress + '%"></div></div>'
+            return progress_bar(progress, barClass);
           }
         },
-        { field: 'download_speed', title: 'download speed', align: 'center', minContentWidth: 120 }
+        { field: 'download_speed', title: 'speed', align: 'center', minContentWidth: 110 }
       ];
 
       var alreadyDownloadColumns = [
-        { field: 'id', title: 'id', minContentWidth: 54 },
-        { field: 'filename', title: 'file name', align: 'center', minContentWidth: 120, maxContentWidth: 620 },
-        { field: 'total_size', title: 'total size', align: 'center', minContentWidth: 90 },
-        { field: 'save_path', title: 'save path', align: 'center', minContentWidth: 140, maxContentWidth: 760 }
+        { field: 'id', title: 'id', minContentWidth: 58 },
+        { field: 'filename', title: 'file name', align: 'center', minContentWidth: 160, maxContentWidth: 640, templet: function (d) { return '<span class="table-ellipsis" title="' + escape_html(d.filename) + '">' + escape_html(d.filename) + '</span>'; } },
+        { field: 'total_size', title: 'total size', align: 'center', minContentWidth: 92 },
+        { field: 'save_path', title: 'save path', align: 'center', minContentWidth: 180, maxContentWidth: 760, templet: function (d) { return '<span class="table-ellipsis table-ellipsis--path" title="' + escape_html(d.save_path) + '">' + escape_html(d.save_path) + '</span>'; } }
       ];
 
       var chatConfigColumns = [
-        { field: 'chat_id', title: 'chat', minContentWidth: 86 },
-        { field: 'status', title: 'status', align: 'center', minContentWidth: 70 },
-        { field: 'last_read_message_id', title: 'last id', align: 'center', minContentWidth: 74 },
-        { field: 'ids_to_retry', title: 'retry', align: 'center', minContentWidth: 58 },
-        { field: 'finish_task', title: 'done', align: 'center', minContentWidth: 58 },
-        { field: 'total_task', title: 'total', align: 'center', minContentWidth: 58 },
+        { field: 'chat_id', title: 'chat', minContentWidth: 110 },
+        { field: 'status', title: 'status', align: 'center', minContentWidth: 90, templet: function (d) { return format_status_badge(d.status); } },
+        { field: 'last_read_message_id', title: 'last id', align: 'center', minContentWidth: 78 },
+        { field: 'start_date', title: 'start date', align: 'center', minContentWidth: 104 },
+        { field: 'end_date', title: 'end date', align: 'center', minContentWidth: 104 },
+        { field: 'ids_to_retry', title: 'retry', align: 'center', minContentWidth: 62 },
+        { field: 'finish_task', title: 'done', align: 'center', minContentWidth: 62 },
+        { field: 'total_task', title: 'total', align: 'center', minContentWidth: 62 },
         {
-          field: 'progress', title: 'progress', align: 'center', minContentWidth: 150, templet: function (d) {
+          field: 'progress',
+          title: 'progress',
+          align: 'center',
+          minContentWidth: 180,
+          templet: function (d) {
             var value = d.progress || 0;
             var color = value == 100 ? 'layui-bg-green' : 'layui-bg-blue';
-            return '<div class="layui-progress layui-progress-big" lay-showpercent="true"><div class="layui-progress-bar ' + color + '" lay-percent="' + value + '%"></div></div>'
+            return progress_bar(value, color);
           }
         },
-        { field: 'file_size_min', title: 'min size', align: 'center', minContentWidth: 76 },
-        { field: 'file_size_max', title: 'max size', align: 'center', minContentWidth: 76 },
-        { field: 'download_filter', title: 'filter', minContentWidth: 80, maxContentWidth: 460 },
-        { title: 'action', toolbar: '#chat_config_actions', contentWidth: 240, fixed: 'right', align: 'center' }
+        { field: 'file_size_min', title: 'min size', align: 'center', minContentWidth: 82 },
+        { field: 'file_size_max', title: 'max size', align: 'center', minContentWidth: 82 },
+        { field: 'download_filter', title: 'filter', minContentWidth: 100, maxContentWidth: 460, templet: function (d) { return '<span class="table-ellipsis" title="' + escape_html(d.download_filter) + '">' + escape_html(d.download_filter) + '</span>'; } },
+        { title: 'action', toolbar: '#chat_config_actions', contentWidth: 252, fixed: 'right', align: 'center' }
       ];
 
       var downloadListTable = table.render({
-        elem: '#download_list'
-        , data: download_list_table_data
-        , title: 'download_list'
-        , height: 'full-160'
-        , limit: 10000
-        , cols: [fit_columns(downloadListColumns, download_list_table_data)]
-        , done: function (res, currentCount) {
-          element.render()
+        elem: '#download_list',
+        data: download_list_table_data,
+        title: 'download_list',
+        height: 'full-320',
+        limit: 10000,
+        cols: [fit_columns(downloadListColumns, download_list_table_data)],
+        done: function () {
+          element.render();
         }
       });
 
       var alreadyDownloadTable = table.render({
-        elem: '#already_download_list'
-        , data: already_download_list_data
-        , title: 'already_download_list'
-        , height: 'full-160'
-        , limit: 10000
-        , cols: [fit_columns(alreadyDownloadColumns, already_download_list_data)]
-        , done: function (res, currentCount) {
-          element.render()
+        elem: '#already_download_list',
+        data: already_download_list_data,
+        title: 'already_download_list',
+        height: 'full-320',
+        limit: 10000,
+        cols: [fit_columns(alreadyDownloadColumns, already_download_list_data)],
+        done: function () {
+          element.render();
         }
       });
 
       var chatConfigTable = table.render({
-        elem: '#chat_config_list'
-        , data: chat_config_table_data
-        , title: 'chat_config_list'
-        , height: 'full-230'
-        , limit: 10000
-        , cols: [fit_columns(chatConfigColumns, chat_config_table_data)]
-        , done: function () {
-          element.render()
-          render_chat_action_rows()
+        elem: '#chat_config_list',
+        data: chat_config_table_data,
+        title: 'chat_config_list',
+        height: 'full-420',
+        limit: 10000,
+        cols: [fit_columns(chatConfigColumns, chat_config_table_data)],
+        done: function () {
+          element.render();
+          render_chat_action_rows();
         }
       });
 
       function reload_chat_configs() {
         $.ajax({
-          url: "get_chat_configs"
-          , type: "get"
-          , async: false
-          , dataType: "json"
-          , success: function (result) {
-            chat_config_table_data = result.data || []
-            reload_table_by_content(chatConfigTable, chatConfigColumns, chat_config_table_data)
+          url: 'get_chat_configs',
+          type: 'get',
+          dataType: 'json',
+          success: function (result) {
+            chat_config_table_data = result.data || [];
+            reload_table_by_content(chatConfigTable, chatConfigColumns, chat_config_table_data);
+            update_summary_cards();
+            touch_refresh_time();
           }
         });
-      };
+      }
 
       function reset_chat_form() {
-        $("#origin_chat_id").val("")
-        form.val("chat_config_form", {
-          "origin_chat_id": "",
-          "chat_id": "",
-          "last_read_message_id": "",
-          "file_size_min": "",
-          "file_size_max": "",
-          "download_filter": ""
-        })
-      };
+        $('#origin_chat_id').val('');
+        form.val('chat_config_form', {
+          origin_chat_id: '',
+          chat_id: '',
+          last_read_message_id: '',
+          file_size_min: '',
+          file_size_max: '',
+          start_date: '',
+          end_date: '',
+          download_filter: ''
+        });
+      }
 
       function post_chat_action(url, data, success) {
         $.ajax({
-          url: url
-          , type: "post"
-          , data: data
-          , dataType: "json"
-          , success: function (result) {
+          url: url,
+          type: 'post',
+          data: data,
+          dataType: 'json',
+          success: function (result) {
             if (result.code != 0) {
-              layer.msg(result.msg || "failed")
-              return
+              layer.msg(result.msg || 'failed');
+              return;
             }
             if (success) {
-              success(result)
+              success(result);
             }
-            reload_chat_configs()
+            reload_chat_configs();
           }
         });
-      };
+      }
+
+      function is_valid_date_range(startDate, endDate) {
+        return !(startDate && endDate && endDate < startDate);
+      }
 
       form.on('submit(save_chat_config)', function (data) {
-        post_chat_action("save_chat_config", data.field, function () {
-          reset_chat_form()
-        })
+        if (!is_valid_date_range(data.field.start_date, data.field.end_date)) {
+          layer.msg('End date must be greater than or equal to start date');
+          return false;
+        }
+        post_chat_action('save_chat_config', data.field, function () {
+          reset_chat_form();
+          layer.msg('Saved successfully');
+        });
         return false;
       });
 
-      $("#reset_chat_config").on("click", function () {
-        reset_chat_form()
+      $('#reset_chat_config').on('click', function () {
+        reset_chat_form();
+        layer.msg('Form cleared');
       });
 
       table.on('tool(chat_config_list)', function (obj) {
         var data = obj.data;
         if (obj.event === 'start') {
-          post_chat_action("start_chat_download", { chat_id: data.chat_id })
+          post_chat_action('start_chat_download', { chat_id: data.chat_id }, function () {
+            layer.msg('Chat started');
+          });
         } else if (obj.event === 'stop') {
-          post_chat_action("stop_chat_download", { chat_id: data.chat_id })
+          post_chat_action('stop_chat_download', { chat_id: data.chat_id }, function () {
+            layer.msg('Chat stopped');
+          });
         } else if (obj.event === 'edit') {
-          form.val("chat_config_form", {
-            "origin_chat_id": data.chat_id,
-            "chat_id": data.chat_id,
-            "last_read_message_id": data.last_read_message_id,
-            "file_size_min": data.file_size_min_bytes || "",
-            "file_size_max": data.file_size_max_bytes || "",
-            "download_filter": data.download_filter || ""
-          })
+          form.val('chat_config_form', {
+            origin_chat_id: data.chat_id,
+            chat_id: data.chat_id,
+            last_read_message_id: data.last_read_message_id,
+            file_size_min: data.file_size_min_bytes || '',
+            file_size_max: data.file_size_max_bytes || '',
+            start_date: data.start_date || '',
+            end_date: data.end_date || '',
+            download_filter: data.download_filter || ''
+          });
+          layer.msg('Loaded into the form');
         } else if (obj.event === 'delete') {
-          layer.confirm('Delete ' + data.chat_id + '?', function (index) {
-            post_chat_action("delete_chat_config", { chat_id: data.chat_id })
-            layer.close(index)
+          layer.confirm('Delete ' + escape_html(data.chat_id) + '?', function (index) {
+            post_chat_action('delete_chat_config', { chat_id: data.chat_id }, function () {
+              layer.msg('Chat deleted');
+            });
+            layer.close(index);
           });
         }
       });
 
       function update_download_list() {
         $.ajax({
-          url: "get_download_list?already_down=false"
-          , type: "get"
-          , async: false
-          , dataType: "json"
-          , success: function (result) {
-            var active_data = []
+          url: 'get_download_list?already_down=false',
+          type: 'get',
+          dataType: 'json',
+          success: function (result) {
+            var active_data = [];
             for (var i = 0, len = result.length; i < len; i++) {
               if (result[i].download_progress != 100) {
-                active_data.push(result[i])
+                active_data.push(result[i]);
               }
             }
-            download_list_table_data = active_data
-            reload_table_by_content(downloadListTable, downloadListColumns, download_list_table_data)
-            element.render()
+            download_list_table_data = active_data;
+            reload_table_by_content(downloadListTable, downloadListColumns, download_list_table_data);
+            update_summary_cards();
+            touch_refresh_time();
+            element.render();
           }
         });
-
-      };
-
+      }
 
       function update_download_status() {
         $.ajax({
-          url: "get_download_status"
-          , type: "get"
-          , async: false
-          , dataType: "json"
-          , success: function (result) {
-            $("#download_speed_title").html(result.download_speed)
+          url: 'get_download_status',
+          type: 'get',
+          dataType: 'json',
+          success: function (result) {
+            $('#download_speed_title').text(result.download_speed);
+            $('#download_speed_title_footer').text(result.download_speed);
           }
         });
-
-      };
-
-
-      var update_download_list_int = self.setInterval(update_download_list, 1000);
-      var update_download_status_int = self.setInterval(update_download_status, 1000);
-      var update_already_download_list_int = 0;
-      var update_chat_config_int = 0;
-
+      }
 
       function update_already_download_list() {
         $.ajax({
-          url: "get_download_list?already_down=true"
-          , type: "get"
-          , async: false
-          , dataType: "json"
-          , success: function (result) {
-            var finished_data = []
+          url: 'get_download_list?already_down=true',
+          type: 'get',
+          dataType: 'json',
+          success: function (result) {
+            var finished_data = [];
             for (var i = 0, len = result.length; i < len; i++) {
               if (result[i].download_progress == 100) {
-                finished_data.push(result[i])
+                finished_data.push(result[i]);
               }
             }
-            already_download_list_data = finished_data
-            reload_table_by_content(alreadyDownloadTable, alreadyDownloadColumns, already_download_list_data)
-            element.render()
+            already_download_list_data = finished_data;
+            reload_table_by_content(alreadyDownloadTable, alreadyDownloadColumns, already_download_list_data);
+            update_summary_cards();
+            touch_refresh_time();
+            element.render();
           }
         });
+      }
 
-      };
+      function stop_timer(timer) {
+        if (timer) {
+          clearInterval(timer);
+        }
+        return null;
+      }
+
+      function start_download_timer() {
+        update_download_list();
+        return self.setInterval(update_download_list, 1000);
+      }
+
+      function start_already_timer() {
+        update_already_download_list();
+        return self.setInterval(update_already_download_list, 1000);
+      }
+
+      function start_chat_timer() {
+        reload_chat_configs();
+        return self.setInterval(reload_chat_configs, 2000);
+      }
+
+      var startDatePicker = laydate.render({
+        elem: '#start_date_input',
+        trigger: 'click',
+        format: 'yyyy-MM-dd',
+        done: function (value) {
+          var endValue = $('#end_date_input').val();
+          if (!is_valid_date_range(value, endValue)) {
+            $('#end_date_input').val(value);
+          }
+          sync_date_picker_limits();
+        }
+      });
+
+      var endDatePicker = laydate.render({
+        elem: '#end_date_input',
+        trigger: 'click',
+        format: 'yyyy-MM-dd',
+        done: function (value) {
+          var startValue = $('#start_date_input').val();
+          if (!is_valid_date_range(startValue, value)) {
+            $('#start_date_input').val(value);
+          }
+          sync_date_picker_limits();
+        }
+      });
+
+      function to_laydate_limit(dateText, isMax) {
+        if (!dateText) {
+          return isMax
+            ? { year: 2099, month: 11, date: 31, hours: 23, minutes: 59, seconds: 59 }
+            : { year: 1970, month: 0, date: 1, hours: 0, minutes: 0, seconds: 0 };
+        }
+
+        var parts = String(dateText).split('-');
+        if (parts.length !== 3) {
+          return isMax
+            ? { year: 2099, month: 11, date: 31, hours: 23, minutes: 59, seconds: 59 }
+            : { year: 1970, month: 0, date: 1, hours: 0, minutes: 0, seconds: 0 };
+        }
+
+        var year = Number(parts[0]);
+        var month = Number(parts[1]);
+        var day = Number(parts[2]);
+        if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+          return isMax
+            ? { year: 2099, month: 11, date: 31, hours: 23, minutes: 59, seconds: 59 }
+            : { year: 1970, month: 0, date: 1, hours: 0, minutes: 0, seconds: 0 };
+        }
+
+        return {
+          year: year,
+          month: month - 1,
+          date: day,
+          hours: isMax ? 23 : 0,
+          minutes: isMax ? 59 : 0,
+          seconds: isMax ? 59 : 0
+        };
+      }
+
+      function sync_date_picker_limits() {
+        var startValue = $('#start_date_input').val();
+        var endValue = $('#end_date_input').val();
+        startDatePicker.config.max = to_laydate_limit(endValue, true);
+        endDatePicker.config.min = to_laydate_limit(startValue, false);
+      }
+
+      $('#start_date_input, #end_date_input').on('change blur', function () {
+        var startValue = $('#start_date_input').val();
+        var endValue = $('#end_date_input').val();
+        if (!is_valid_date_range(startValue, endValue)) {
+          if (this.id === 'start_date_input') {
+            $('#end_date_input').val(startValue);
+          } else {
+            $('#start_date_input').val(endValue);
+          }
+          layer.msg('Date range adjusted: end date cannot be earlier than start date');
+        }
+        sync_date_picker_limits();
+      });
+
+      sync_date_picker_limits();
+
+      load_app_version();
+      sync_download_state_button($('#download_state').attr('data-value'));
+      update_download_status();
+      update_download_list_int = start_download_timer();
+      update_download_status_int = self.setInterval(update_download_status, 1000);
+      reload_chat_configs();
 
       element.on('tab(telegram_media_downloader)', function (data) {
         if (data.index != 0) {
-          clearInterval(update_download_list_int);
+          update_download_list_int = stop_timer(update_download_list_int);
         }
-
-        if (data.index == 0) {
-          update_download_list_int = self.setInterval(update_download_list, 1000);
+        if (data.index == 0 && !update_download_list_int) {
+          update_download_list_int = start_download_timer();
         }
 
         if (data.index != 1) {
-          clearInterval(update_already_download_list_int);
+          update_already_download_list_int = stop_timer(update_already_download_list_int);
         }
-
-        if (data.index == 1) {
-          update_already_download_list_int = self.setInterval(update_already_download_list, 1000);
+        if (data.index == 1 && !update_already_download_list_int) {
+          update_already_download_list_int = start_already_timer();
         }
 
         if (data.index != 2) {
-          clearInterval(update_chat_config_int);
+          update_chat_config_int = stop_timer(update_chat_config_int);
         }
-
-        if (data.index == 2) {
-          reload_chat_configs();
-          update_chat_config_int = self.setInterval(reload_chat_configs, 2000);
+        if (data.index == 2 && !update_chat_config_int) {
+          update_chat_config_int = start_chat_timer();
         }
-
       });
 
+      touch_refresh_time();
+      update_summary_cards();
     });
   </script>
 </body>

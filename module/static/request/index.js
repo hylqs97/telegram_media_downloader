@@ -1,14 +1,15 @@
-var request = (url, type = 'get' | 'post', data) => {
+var request = (url, type = 'get', data = {}) => {
     const $ = layui.$
+    const method = String(type || 'get').toLowerCase()
 
     return new Promise((resolve, reject) => {
         $.ajax({
             url,
-            type,
+            type: method,
             data,
             dataType: 'json',
             timeout: 60 * 1000,
-            contentType: 'application/x-www-form-urlencoded',
+            contentType: method === 'get' ? undefined : 'application/x-www-form-urlencoded; charset=UTF-8',
             success: (res) => {
                 resolve(res)
             },
