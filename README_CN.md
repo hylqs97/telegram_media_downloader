@@ -150,6 +150,8 @@ chat:
   sort_by: reactions_count # reactions_count / views_count
   sort_order: desc
   limit: 100
+  file_size_min: 10MB
+  file_size_max: 2GB
 - chat_id: telegram_chat_id_2
   last_read_message_id: 0
 # 我们将ids_to_retry移到data.yaml
@@ -171,7 +173,7 @@ file_formats:
   - mp4
 save_path: D:\telegram_media_downloader
 file_path_prefix:
-- chat_title
+- chat_id
 - media_datetime
 upload_drive:
   enable_upload_file: true
@@ -186,6 +188,7 @@ file_name_prefix_split: ' - '
 max_download_task: 5
 web_host: 127.0.0.1
 web_port: 5000
+web_auto_start: false
 web_login_secret: 123
 allowed_user_ids:
 - 'me'
@@ -203,6 +206,7 @@ enable_download_txt: false
   - `sort_by` - 可选排序字段，当前支持 `reactions_count`（按消息总点赞/互动数排序）和 `views_count`（按消息阅读数排序）。
   - `sort_order` - 可选排序方向，支持 `desc`（默认）和 `asc`。
   - `limit` - 可选拉取消息数量上限。配合 `sort_by` 可下载排序后的前 N 条消息。
+  - `file_size_min` / `file_size_max` - 可选的单个群组文件大小过滤。值可以是字节数，也可以使用 `10MB`、`2 GB` 这样的单位。
 - **chat_id** - 您要下载媒体的聊天/频道的 ID。你从上述步骤中得到的。
 - **last_read_message_id** - 如果这是您第一次阅读频道，请将其设置为“0”，或者如果您已经使用此脚本下载媒体，它将有一些数字，这些数字会在脚本成功执行后自动更新。不要改变它。
 - **ids_to_retry** - `保持原样。`下载器脚本使用它来跟踪所有跳过的下载，以便在下次执行脚本时可以下载它。
@@ -210,6 +214,7 @@ enable_download_txt: false
 - **file_formats** - 为支持的媒体类型（“音频”、“文档”和“视频”）下载的文件类型。默认格式为“all”，下载所有文件。
 - **save_path** - 你想存储下载文件的根目录
 - **file_path_prefix** - 存储文件子文件夹，列表的顺序不定，可以随机组合
+  - `chat_id`         - 聊天频道或者群组 ID。群组改名后该目录仍保持不变。
   - `chat_title`      - 聊天频道或者群组标题, 如果找不到标题则为配置文件中的`chat_id`
   - `media_datetime`  - 资源的发布时间
   - `media_type`      - 资源类型，类型查阅 `media_types`
@@ -229,6 +234,7 @@ enable_download_txt: false
 - **hide_file_name** - 是否隐藏web界面文件名称，默认`false`
 - **web_host** - web界面地址
 - **web_port** - web界面端口
+- **web_auto_start** - 程序启动后是否自动下载全部已配置群组，默认 `false`。设置为 `true` 可恢复启动即下载。
 - **language** - 应用语言，默认为英文(`EN`),可选`ZH`（中文）,`RU`,`UA`
 - **web_login_secret** - 网页登录密码，如果不配置则访问网页不需要登录
 - **log_level** - 默认日志等级，请参阅 `logging._nameToLevel`
@@ -248,12 +254,12 @@ python3 media_downloader.py
 
 ```yaml
 file_path_prefix:
-  - chat_title
+  - chat_id
   - media_datetime
   - media_type
 ```
 
-视频下载完整目录为：`save_path`/`chat_title`/`media_datetime`/`media_type`。
+视频下载完整目录为：`save_path`/`chat_id`/`media_datetime`/`media_type`。
 列表的顺序不定，可以随机组合。
 如果配置为空，则所有文件保存在`save_path`下。
 

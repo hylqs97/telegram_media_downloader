@@ -32,6 +32,7 @@ from utils.format import truncate_filename, validate_title
 from utils.log import LogFilter
 from utils.meta import print_meta
 from utils.meta_data import MetaData
+from utils.updates import check_for_updates
 
 logging.basicConfig(
     level=logging.INFO,
@@ -212,9 +213,8 @@ async def _get_media_meta(
 
     file_name = None
     temp_file_name = None
-    dirname = validate_title(f"{chat_id}")
-    if message.chat and message.chat.title:
-        dirname = validate_title(f"{message.chat.title}")
+    chat_title = message.chat.title if message.chat and message.chat.title else None
+    chat_dirname = validate_title(f"{chat_id}")
 
     if message.date:
         datetime_dir_name = message.date.strftime(app.date_format)
@@ -224,7 +224,9 @@ async def _get_media_meta(
     if _type in ["voice", "video_note"]:
         # pylint: disable = C0209
         file_format = media_obj.mime_type.split("/")[-1]  # type: ignore
-        file_save_path = app.get_file_save_path(_type, dirname, datetime_dir_name)
+        file_save_path = app.get_file_save_path(
+            _type, chat_id, datetime_dir_name, chat_title
+        )
         file_name = "{} - {}_{}.{}".format(
             message.id,
             _type,
@@ -232,7 +234,7 @@ async def _get_media_meta(
             file_format,
         )
         file_name = validate_title(file_name)
-        temp_file_name = os.path.join(app.temp_save_path, dirname, file_name)
+        temp_file_name = os.path.join(app.temp_save_path, chat_dirname, file_name)
 
         file_name = os.path.join(file_save_path, file_name)
     else:
@@ -269,9 +271,11 @@ async def _get_media_meta(
             app.get_file_name(message.id, file_name, caption) + file_name_suffix
         )
 
-        file_save_path = app.get_file_save_path(_type, dirname, datetime_dir_name)
+        file_save_path = app.get_file_save_path(
+            _type, chat_id, datetime_dir_name, chat_title
+        )
 
-        temp_file_name = os.path.join(app.temp_save_path, dirname, gen_file_name)
+        temp_file_name = os.path.join(app.temp_save_path, chat_dirname, gen_file_name)
 
         file_name = os.path.join(file_save_path, gen_file_name)
     return truncate_filename(file_name), truncate_filename(temp_file_name), file_format
@@ -294,12 +298,12 @@ async def save_msg_to_file(
     app, chat_id: Union[int, str], message: pyrogram.types.Message
 ):
     """Write message text into file"""
-    dirname = validate_title(
-        message.chat.title if message.chat and message.chat.title else str(chat_id)
-    )
+    chat_title = message.chat.title if message.chat and message.chat.title else None
     datetime_dir_name = message.date.strftime(app.date_format) if message.date else "0"
 
-    file_save_path = app.get_file_save_path("msg", dirname, datetime_dir_name)
+    file_save_path = app.get_file_save_path(
+        "msg", chat_id, datetime_dir_name, chat_title
+    )
     file_name = os.path.join(
         app.temp_save_path,
         file_save_path,
@@ -566,6 +570,7 @@ async def download_chat_task(
     node: TaskNode,
 ):
     """Download all task"""
+    node.is_running = True
     messages_iter = get_chat_history_v2(
         client,
         node.chat_id,
@@ -644,15 +649,66 @@ async def download_chat_task(
     node.is_running = True
 
 
+def _build_chat_task_node(
+    chat_id: Union[int, str], chat_download_config: ChatDownloadConfig
+) -> TaskNode:
+    """Build a task node from a stored chat config."""
+    return TaskNode(
+        chat_id=chat_id,
+        upload_telegram_chat_id=chat_download_config.upload_telegram_chat_id,
+        limit=chat_download_config.limit,
+        sort_by=chat_download_config.sort_by,
+        sort_order=chat_download_config.sort_order,
+    )
+
+
+def _is_chat_download_active(chat_download_config: ChatDownloadConfig) -> bool:
+    """Check whether a chat config already has active work."""
+    node = chat_download_config.node
+    if node.is_stop_transmission:
+        return False
+
+    if not chat_download_config.need_check and node.is_running:
+        return True
+
+    return node.is_running and node.total_task != node.total_download_task
+
+
+async def start_chat_download(
+    client: pyrogram.Client, chat_id: Union[int, str]
+) -> Tuple[bool, str]:
+    """Start one configured chat download from the web UI."""
+    resolved_chat_id = app.resolve_chat_id(chat_id)
+    if resolved_chat_id not in app.chat_download_config:
+        return False, f"chat {chat_id} not found"
+
+    chat_download_config = app.chat_download_config[resolved_chat_id]
+    if _is_chat_download_active(chat_download_config):
+        return False, f"chat {chat_id} is already running"
+
+    chat_download_config.need_check = False
+    chat_download_config.total_task = 0
+    chat_download_config.finish_task = 0
+    chat_download_config.node = _build_chat_task_node(
+        resolved_chat_id, chat_download_config
+    )
+
+    try:
+        await download_chat_task(client, chat_download_config, chat_download_config.node)
+    except Exception as e:
+        chat_download_config.need_check = True
+        logger.warning(f"Download {resolved_chat_id} error: {e}")
+        return False, str(e)
+    finally:
+        chat_download_config.need_check = True
+
+    return True, "started"
+
+
 async def download_all_chat(client: pyrogram.Client):
     """Download All chat"""
     for key, value in app.chat_download_config.items():
-        value.node = TaskNode(
-            chat_id=key,
-            limit=value.limit,
-            sort_by=value.sort_by,
-            sort_order=value.sort_order,
-        )
+        value.node = _build_chat_task_node(key, value)
         try:
             await download_chat_task(client, value, value.node)
         except Exception as e:
@@ -666,10 +722,12 @@ async def run_until_all_task_finish():
     while True:
         finish: bool = True
         for _, value in app.chat_download_config.items():
+            if value.node.is_stop_transmission:
+                continue
             if not value.need_check or value.total_task != value.finish_task:
                 finish = False
 
-        if (not app.bot_token and finish) or app.restart_program:
+        if (not app.bot_token and app.web_auto_start and finish) or app.restart_program:
             break
 
         await asyncio.sleep(1)
@@ -709,14 +767,18 @@ def main():
     )
     try:
         app.pre_run()
-        init_web(app)
+        init_web(app, client, start_chat_download)
 
         set_max_concurrent_transmissions(client, app.max_concurrent_transmissions)
 
         app.loop.run_until_complete(start_server(client))
         logger.success(_t("Successfully started (Press Ctrl+C to stop)"))
 
-        app.loop.create_task(download_all_chat(client))
+        if app.web_auto_start:
+            app.loop.create_task(download_all_chat(client))
+        else:
+            for value in app.chat_download_config.values():
+                value.need_check = True
         for _ in range(app.max_download_task):
             task = app.loop.create_task(worker(client))
             tasks.append(task)

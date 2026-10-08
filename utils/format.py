@@ -178,7 +178,10 @@ def get_byte_from_str(byte_str: str) -> Optional[int]:
     int
         Byte
     """
-    search_res = re.match(r"(\d{1,})(B|KB|MB|GB|TB)", byte_str)
+    search_res = re.fullmatch(
+        r"\s*(\d{1,})\s*(B|KB|MB|GB|TB)\s*",
+        str(byte_str).upper(),
+    )
     if search_res:
         unit_str = search_res.group(2)
         unit: int = 1

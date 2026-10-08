@@ -3,10 +3,12 @@
 import os
 import sys
 import unittest
+from datetime import datetime
 from unittest import mock
 
 import module.app
-from module.app import Application, ChatDownloadConfig, DownloadStatus
+from module.app import Application, ChatDownloadConfig, DownloadStatus, parse_file_size
+from utils.meta_data import MetaData
 
 sys.path.append("..")  # Adds higher directory to python modules path.
 
@@ -26,6 +28,7 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(app.save_path, os.path.join(os.path.abspath("."), "downloads"))
         self.assertEqual(app.proxy, {})
         self.assertEqual(app.restart_program, False)
+        self.assertEqual(app.web_auto_start, False)
 
         app.chat_download_config[123] = ChatDownloadConfig()
         app.chat_download_config[123].last_read_message_id = 13
@@ -83,6 +86,99 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(app.chat_download_config["test_chat"].sort_by, "views_count")
         self.assertEqual(app.chat_download_config["test_chat"].sort_order, "asc")
         self.assertEqual(app.chat_download_config["test_chat"].limit, 100)
+
+    def test_get_file_save_path_chat_id_prefix(self):
+        app = Application("", "")
+        app.save_path = "/root/project"
+
+        self.assertEqual(
+            app.get_file_save_path("video", -100123, "2026_05", "Renamed Chat"),
+            os.path.join("/root/project", "-100123", "2026_05"),
+        )
+
+        app.file_path_prefix = ["chat_title", "media_datetime"]
+        self.assertEqual(
+            app.get_file_save_path("video", -100123, "2026_05", "Renamed Chat"),
+            os.path.join("/root/project", "Renamed Chat", "2026_05"),
+        )
+
+    def test_chat_file_size_filter(self):
+        app = Application("", "")
+        chat_config = ChatDownloadConfig()
+        chat_config.file_size_min = parse_file_size("10MB")
+        chat_config.file_size_max = parse_file_size("20 MB")
+
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(media_file_size=9)), False
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(media_file_size=15 * 1024 * 1024)),
+            True,
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(media_file_size=21 * 1024 * 1024)),
+            False,
+        )
+
+    def test_upsert_chat_config(self):
+        app = Application("", "")
+        app.config["chat"] = []
+
+        app.upsert_chat_download_config(
+            chat_id="-100123",
+            last_read_message_id=42,
+            download_filter="media_file_size > 1MB",
+            file_size_min="10MB",
+            file_size_max="20MB",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+        )
+        app.update_config(False)
+
+        chat_config = app.config["chat"][0]
+        self.assertEqual(chat_config["chat_id"], -100123)
+        self.assertEqual(chat_config["last_read_message_id"], 42)
+        self.assertEqual(chat_config["file_size_min"], 10 * 1024 * 1024)
+        self.assertEqual(chat_config["file_size_max"], 20 * 1024 * 1024)
+        self.assertEqual(chat_config["start_date"], "2024-01-01")
+        self.assertEqual(chat_config["end_date"], "2024-01-31")
+
+    def test_chat_date_range_filter(self):
+        app = Application("", "")
+        chat_config = ChatDownloadConfig()
+        app.upsert_chat_download_config(
+            chat_id="test_chat",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+        )
+        chat_config = app.chat_download_config["test_chat"]
+
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(message_date=datetime(2023, 12, 31))),
+            False,
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(message_date=datetime(2024, 1, 1))),
+            True,
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(message_date=datetime(2024, 1, 31, 23, 59, 59))),
+            True,
+        )
+        self.assertEqual(
+            app.exec_filter(chat_config, MetaData(message_date=datetime(2024, 2, 1))),
+            False,
+        )
+
+    def test_chat_date_range_validation(self):
+        app = Application("", "")
+        self.assertRaises(
+            ValueError,
+            app.upsert_chat_download_config,
+            "chat_1",
+            start_date="2024-02-01",
+            end_date="2024-01-31",
+        )
 
     @mock.patch("__main__.__builtins__.open", new_callable=mock.mock_open)
     @mock.patch("module.app.yaml", autospec=True)

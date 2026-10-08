@@ -6,7 +6,7 @@ import time
 from asyncio import Lock
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, List, Optional, Union
 
@@ -16,7 +16,7 @@ from ruamel import yaml
 from module.cloud_drive import CloudDrive, CloudDriveConfig
 from module.filter import Filter
 from module.language import Language, set_language
-from utils.format import replace_date_time, validate_title
+from utils.format import get_byte_from_str, replace_date_time, validate_title
 from utils.meta_data import MetaData
 
 _yaml = yaml.YAML()
@@ -315,6 +315,12 @@ class ChatDownloadConfig:
         self.limit: int = 0
         self.sort_by: str = ""
         self.sort_order: str = "desc"
+        self.file_size_min: Optional[int] = None
+        self.file_size_max: Optional[int] = None
+        self.start_date: Optional[str] = None
+        self.end_date: Optional[str] = None
+        self.start_date_time: Optional[datetime] = None
+        self.end_date_exclusive: Optional[datetime] = None
 
 
 def get_config(config, key, default=None, val_type=str, verbose=True):
@@ -344,6 +350,86 @@ def get_config(config, key, default=None, val_type=str, verbose=True):
         logger.warning(f"{key} is not {val_type.__name__}")
 
     return default
+
+
+def normalize_chat_id(chat_id: Union[int, str]) -> Union[int, str]:
+    """Normalize chat id values received from web/config."""
+    if isinstance(chat_id, int):
+        return chat_id
+
+    chat_id_text = str(chat_id).strip()
+    if chat_id_text.lstrip("-").isdigit():
+        return int(chat_id_text)
+
+    return chat_id_text
+
+
+def parse_file_size(value) -> Optional[int]:
+    """Parse optional file size config values."""
+    if value is None or value == "":
+        return None
+
+    if isinstance(value, int):
+        return max(value, 0)
+
+    value_text = str(value).strip()
+    if not value_text:
+        return None
+
+    if value_text.isdigit():
+        return int(value_text)
+
+    file_size = get_byte_from_str(value_text)
+    if file_size is None:
+        raise ValueError(f"invalid file size: {value}")
+
+    return file_size
+
+
+def parse_chat_date(value, field_name: str) -> Optional[str]:
+    """Parse and normalize optional chat date values to YYYY-MM-DD."""
+    if value is None or value == "":
+        return None
+
+    value_text = str(value).strip()
+    if not value_text:
+        return None
+
+    for date_format in ("%Y-%m-%d", "%Y.%m.%d", "%Y/%m/%d"):
+        try:
+            parsed_date = datetime.strptime(value_text, date_format)
+            return parsed_date.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    raise ValueError(f"invalid {field_name}: {value}")
+
+
+def apply_chat_date_range(chat_config: ChatDownloadConfig, start_date, end_date):
+    """Normalize, validate, and cache one chat date range."""
+    normalized_start = parse_chat_date(start_date, "start_date")
+    normalized_end = parse_chat_date(end_date, "end_date")
+
+    start_date_time = (
+        datetime.strptime(normalized_start, "%Y-%m-%d") if normalized_start else None
+    )
+    end_date_time = (
+        datetime.strptime(normalized_end, "%Y-%m-%d") if normalized_end else None
+    )
+
+    if (
+        start_date_time is not None
+        and end_date_time is not None
+        and start_date_time > end_date_time
+    ):
+        raise ValueError("start_date cannot be greater than end_date")
+
+    chat_config.start_date = normalized_start
+    chat_config.end_date = normalized_end
+    chat_config.start_date_time = start_date_time
+    chat_config.end_date_exclusive = (
+        end_date_time + timedelta(days=1) if end_date_time is not None else None
+    )
 
 
 class Application:
@@ -392,7 +478,7 @@ class Application:
         self.restart_program = False
         self.config: dict = {}
         self.app_data: dict = {}
-        self.file_path_prefix: List[str] = ["chat_title", "media_datetime"]
+        self.file_path_prefix: List[str] = ["chat_id", "media_datetime"]
         self.file_name_prefix: List[str] = ["message_id", "file_name"]
         self.file_name_prefix_split: str = " - "
         self.log_file_path = os.path.join(os.path.abspath("."), "log")
@@ -409,20 +495,15 @@ class Application:
         self.after_upload_telegram_delete: bool = True
         self.web_login_secret: str = ""
         self.debug_web: bool = False
+        self.web_auto_start: bool = False
         self.log_level: str = "INFO"
         self.start_timeout: int = 60
-        self.allowed_user_ids: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq(
-            []
-        )
+        self.allowed_user_ids: list = []
         self.date_format: str = "%Y_%m"
         self.drop_no_audio_video: bool = False
         self.enable_download_txt: bool = False
-        self.filter_advertisement_list: yaml.comments.CommentedSeq = (
-            yaml.comments.CommentedSeq([])
-        )
-        self.replace_advertisement_list: yaml.comments.CommentedSeq = (
-            yaml.comments.CommentedSeq([])
-        )
+        self.filter_advertisement_list: list = []
+        self.replace_advertisement_list: list = []
         self.group_add_advertisement: dict = {}
         self.forward_limit_call = LimitCall(max_limit_call_times=33)
 
@@ -531,6 +612,9 @@ class Application:
             _config.get("web_login_secret", self.web_login_secret)
         )
         self.debug_web = _config.get("debug_web", self.debug_web)
+        self.web_auto_start = get_config(
+            _config, "web_auto_start", self.web_auto_start, bool
+        )
         self.log_level = _config.get("log_level", self.log_level)
 
         self.start_timeout = get_config(
@@ -541,7 +625,7 @@ class Application:
             _config,
             "allowed_user_ids",
             self.allowed_user_ids,
-            yaml.comments.CommentedSeq,
+            list,
         )
 
         self.date_format = get_config(
@@ -563,14 +647,14 @@ class Application:
             _config,
             "filter_advertisement_list",
             self.filter_advertisement_list,
-            yaml.comments.CommentedSeq,
+            list,
         )
 
         self.replace_advertisement_list = get_config(
             _config,
             "replace_advertisement_list",
             self.replace_advertisement_list,
-            yaml.comments.CommentedSeq,
+            list,
         )
 
         if _config.get("group_add_advertisement"):
@@ -594,32 +678,39 @@ class Application:
             chat = _config["chat"]
             for item in chat:
                 if "chat_id" in item:
-                    self.chat_download_config[item["chat_id"]] = ChatDownloadConfig()
-                    self.chat_download_config[
-                        item["chat_id"]
-                    ].last_read_message_id = item.get("last_read_message_id", 0)
-                    self.chat_download_config[
-                        item["chat_id"]
-                    ].download_filter = item.get("download_filter", "")
-                    self.chat_download_config[
-                        item["chat_id"]
-                    ].upload_telegram_chat_id = item.get(
+                    chat_id = normalize_chat_id(item["chat_id"])
+                    self.chat_download_config[chat_id] = ChatDownloadConfig()
+                    chat_config = self.chat_download_config[chat_id]
+                    chat_config.last_read_message_id = item.get(
+                        "last_read_message_id", 0
+                    )
+                    chat_config.download_filter = item.get("download_filter", "")
+                    chat_config.upload_telegram_chat_id = item.get(
                         "upload_telegram_chat_id", None
                     )
                     limit = item.get("limit", 0)
                     if isinstance(limit, int):
-                        self.chat_download_config[item["chat_id"]].limit = max(limit, 0)
+                        chat_config.limit = max(limit, 0)
 
-                    self.chat_download_config[item["chat_id"]].sort_by = str(
-                        item.get("sort_by", "")
-                    ).strip()
+                    chat_config.sort_by = str(item.get("sort_by", "")).strip()
                     sort_order = str(item.get("sort_order", "desc")).strip().lower()
                     if sort_order not in ["asc", "desc"]:
                         sort_order = "desc"
-                    self.chat_download_config[item["chat_id"]].sort_order = sort_order
+                    chat_config.sort_order = sort_order
+                    chat_config.file_size_min = parse_file_size(
+                        item.get("file_size_min")
+                    )
+                    chat_config.file_size_max = parse_file_size(
+                        item.get("file_size_max")
+                    )
+                    apply_chat_date_range(
+                        chat_config,
+                        item.get("start_date"),
+                        item.get("end_date"),
+                    )
         elif _config.get("chat_id"):
             # Compatible with lower versions
-            self._chat_id = _config["chat_id"]
+            self._chat_id = normalize_chat_id(_config["chat_id"])
 
             self.chat_download_config[self._chat_id] = ChatDownloadConfig()
 
@@ -662,6 +753,95 @@ class Application:
 
         return True
 
+    def resolve_chat_id(self, chat_id: Union[int, str]) -> Union[int, str, None]:
+        """Return the existing chat key matching a UI/config value."""
+        normalized_chat_id = normalize_chat_id(chat_id)
+        if normalized_chat_id in self.chat_download_config:
+            return normalized_chat_id
+
+        for key in self.chat_download_config:
+            if str(key) == str(chat_id).strip():
+                return key
+
+        return normalized_chat_id
+
+    def upsert_chat_download_config(
+        self,
+        chat_id: Union[int, str],
+        last_read_message_id: int = 0,
+        download_filter: str = "",
+        file_size_min=None,
+        file_size_max=None,
+        start_date=None,
+        end_date=None,
+        origin_chat_id: Union[int, str, None] = None,
+    ) -> Union[int, str]:
+        """Create or update a web-managed chat config."""
+        normalized_chat_id = normalize_chat_id(chat_id)
+        origin_key = self.resolve_chat_id(origin_chat_id) if origin_chat_id else None
+
+        if origin_key in self.chat_download_config and origin_key != normalized_chat_id:
+            chat_config = self.chat_download_config.pop(origin_key)
+        else:
+            chat_config = self.chat_download_config.get(
+                normalized_chat_id, ChatDownloadConfig()
+            )
+
+        chat_config.last_read_message_id = max(int(last_read_message_id), 0)
+        chat_config.download_filter = replace_date_time(download_filter or "")
+        chat_config.file_size_min = parse_file_size(file_size_min)
+        chat_config.file_size_max = parse_file_size(file_size_max)
+        apply_chat_date_range(chat_config, start_date, end_date)
+        if (
+            chat_config.file_size_min is not None
+            and chat_config.file_size_max is not None
+            and chat_config.file_size_min > chat_config.file_size_max
+        ):
+            raise ValueError("file_size_min cannot be greater than file_size_max")
+
+        self.chat_download_config[normalized_chat_id] = chat_config
+        return normalized_chat_id
+
+    def delete_chat_download_config(self, chat_id: Union[int, str]) -> bool:
+        """Delete a chat config."""
+        resolved_chat_id = self.resolve_chat_id(chat_id)
+        if resolved_chat_id not in self.chat_download_config:
+            return False
+
+        self.chat_download_config.pop(resolved_chat_id)
+        return True
+
+    def export_chat_config(self, chat_id: Union[int, str], value: ChatDownloadConfig):
+        """Export one chat config to config.yaml format."""
+        chat_config = {
+            "chat_id": chat_id,
+            "last_read_message_id": (
+                value.last_read_message_id + 1
+                if value.finish_task
+                else value.last_read_message_id
+            ),
+        }
+
+        if value.download_filter:
+            chat_config["download_filter"] = value.download_filter
+        if value.upload_telegram_chat_id:
+            chat_config["upload_telegram_chat_id"] = value.upload_telegram_chat_id
+        if value.limit:
+            chat_config["limit"] = value.limit
+        if value.sort_by:
+            chat_config["sort_by"] = value.sort_by
+            chat_config["sort_order"] = value.sort_order
+        if value.file_size_min is not None:
+            chat_config["file_size_min"] = value.file_size_min
+        if value.file_size_max is not None:
+            chat_config["file_size_max"] = value.file_size_max
+        if value.start_date:
+            chat_config["start_date"] = value.start_date
+        if value.end_date:
+            chat_config["end_date"] = value.end_date
+
+        return chat_config
+
     def assign_app_data(self, app_data: dict) -> bool:
         """Assign config from str.
 
@@ -688,11 +868,12 @@ class Application:
             if app_data.get("chat"):
                 chats = app_data["chat"]
                 for chat in chats:
-                    if (
-                        "chat_id" in chat
-                        and chat["chat_id"] in self.chat_download_config
-                    ):
-                        chat_id = chat["chat_id"]
+                    if "chat_id" in chat:
+                        chat_id = self.resolve_chat_id(chat["chat_id"])
+                    else:
+                        chat_id = None
+
+                    if chat_id in self.chat_download_config:
                         self.chat_download_config[chat_id].ids_to_retry = chat.get(
                             "ids_to_retry", []
                         )
@@ -733,7 +914,11 @@ class Application:
         return ret
 
     def get_file_save_path(
-        self, media_type: str, chat_title: str, media_datetime: str
+        self,
+        media_type: str,
+        chat_id: Union[int, str],
+        media_datetime: str,
+        chat_title: Optional[str] = None,
     ) -> str:
         """Get file save path prefix.
 
@@ -742,11 +927,14 @@ class Application:
         media_type: str
             see config.yaml media_types
 
-        chat_title: str
-            see channel or group title
+        chat_id: Union[int, str]
+            see channel or group id
 
         media_datetime: str
             media datetime
+
+        chat_title: Optional[str]
+            see channel or group title
 
         Returns
         -------
@@ -754,10 +942,14 @@ class Application:
             file save path prefix
         """
 
+        chat_id_dir = validate_title(f"{chat_id}")
+        chat_title_dir = validate_title(f"{chat_title or chat_id}")
         res: str = self.save_path
         for prefix in self.file_path_prefix:
-            if prefix == "chat_title":
-                res = os.path.join(res, chat_title)
+            if prefix == "chat_id":
+                res = os.path.join(res, chat_id_dir)
+            elif prefix == "chat_title":
+                res = os.path.join(res, chat_title_dir)
             elif prefix == "media_datetime":
                 res = os.path.join(res, media_datetime)
             elif prefix == "media_type":
@@ -837,6 +1029,40 @@ class Application:
         Returns:
             bool: The result of executing the filter.
         """
+        if (
+            download_config.file_size_min is not None
+            or download_config.file_size_max is not None
+        ):
+            if meta_data.media_file_size is None:
+                return False
+            if (
+                download_config.file_size_min is not None
+                and meta_data.media_file_size < download_config.file_size_min
+            ):
+                return False
+            if (
+                download_config.file_size_max is not None
+                and meta_data.media_file_size > download_config.file_size_max
+            ):
+                return False
+
+        if (
+            download_config.start_date_time is not None
+            or download_config.end_date_exclusive is not None
+        ):
+            if meta_data.message_date is None:
+                return False
+            if (
+                download_config.start_date_time is not None
+                and meta_data.message_date < download_config.start_date_time
+            ):
+                return False
+            if (
+                download_config.end_date_exclusive is not None
+                and meta_data.message_date >= download_config.end_date_exclusive
+            ):
+                return False
+
         if download_config.download_filter:
             self.download_filter.set_meta_data(meta_data)
             return self.download_filter.exec(download_config.download_filter)
@@ -852,12 +1078,8 @@ class Application:
         immediate: bool
             If update config immediate,default True
         """
-        # TODO: fix this not exist chat
-        if not self.app_data.get("chat") and self.config.get("chat"):
-            self.app_data["chat"] = [
-                {"chat_id": i} for i in range(0, len(self.config["chat"]))
-            ]
-        idx = 0
+        config_chat_list = []
+        app_data_chat_list = []
         # pylint: disable = R1733
         for key, value in self.chat_download_config.items():
             # pylint: disable = W0201
@@ -877,18 +1099,13 @@ class Application:
                     unfinished_ids.add(_idx)
 
             self.chat_download_config[key].ids_to_retry = list(unfinished_ids)
+            config_chat_list.append(self.export_chat_config(key, value))
+            app_data_chat_list.append(
+                {"chat_id": key, "ids_to_retry": value.ids_to_retry}
+            )
 
-            if idx >= len(self.app_data["chat"]):
-                self.app_data["chat"].append({})
-
-            if value.finish_task:
-                self.config["chat"][idx]["last_read_message_id"] = (
-                    value.last_read_message_id + 1
-                )
-
-            self.app_data["chat"][idx]["chat_id"] = key
-            self.app_data["chat"][idx]["ids_to_retry"] = value.ids_to_retry
-            idx += 1
+        self.config["chat"] = config_chat_list
+        self.app_data["chat"] = app_data_chat_list
 
         self.config["save_path"] = self.save_path
         self.config["file_path_prefix"] = self.file_path_prefix
@@ -906,6 +1123,7 @@ class Application:
             self.config.pop("last_read_message_id")
 
         self.config["language"] = self.language.name
+        self.config["web_auto_start"] = self.web_auto_start
         # for it in self.downloaded_ids:
         #    self.already_download_ids_set.add(it)
 
