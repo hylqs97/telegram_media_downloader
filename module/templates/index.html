@@ -324,6 +324,48 @@
         return '<span class="status-pill status-pill--' + status + '">' + labels[status] + '</span>';
       }
 
+      var directory_messages = {
+        title_unavailable: '群名暂未获取，目录待确认',
+        outside_download_root: '目录位于下载根目录之外，无法打开',
+        directory_missing: '目录尚未创建',
+        unsupported_platform: '打开目录仅支持 Windows 服务',
+        local_access_required: '请在服务所在电脑通过 localhost 或 127.0.0.1 打开',
+        json_required: '请求格式不正确，请刷新后重试',
+        application_not_ready: '下载服务尚未就绪',
+        chat_not_found: '群聊任务不存在，请刷新后重试',
+        open_directory_failed: '目录打开失败，请检查目录或访问权限'
+      };
+
+      function chat_identity(data) {
+        var title = data.chat_title || data.chat_id;
+        var path = data.save_directory || '';
+        var reason = directory_messages[data.directory_error] || '';
+        var directory = path ? '<span class="task-directory-label">本地保存目录</span><button type="button" class="directory-link" lay-event="open_directory" aria-label="打开本地保存目录" title="' + escape_html(reason ? path + '\n' + reason : path) + '"' + (data.can_open_directory ? '' : ' disabled') + '><i class="layui-icon layui-icon-file" aria-hidden="true"></i><span>' + escape_html(path) + '</span></button>' : '';
+        if (reason) { directory += '<small class="directory-status">' + escape_html(reason) + '</small>'; }
+        return '<div class="task-identity"><strong title="' + escape_html(title) + '">' + escape_html(title) + '</strong><small>' + (data.chat_title ? 'ID ' + escape_html(data.chat_id) + ' · ' : '') + '记录 ID ' + escape_html(data.last_read_message_id) + '</small>' + directory + '</div>';
+      }
+
+      function open_chat_directory(data, button) {
+        if (!data.can_open_directory || button.prop('disabled')) { return; }
+        button.prop('disabled', true).attr('aria-busy', 'true');
+        var message = function (result) {
+          layer.msg(directory_messages[result && result.error] || '目录打开失败，请重试');
+        };
+        $.ajax({
+          url: 'open_chat_directory',
+          type: 'post',
+          contentType: 'application/json',
+          dataType: 'json',
+          data: JSON.stringify({ chat_id: data.chat_id }),
+          success: function (result) {
+            if (result.code !== 0) { message(result); return; }
+            layer.msg('已打开本地保存目录');
+          },
+          error: function (response) { message(response.responseJSON); },
+          complete: function () { button.prop('disabled', false).attr('aria-busy', 'false'); }
+        });
+      }
+
       var downloadListColumns = [
         { field: 'chat', title: '群聊 ID', contentWidth: 170 },
         { field: 'id', title: '消息', contentWidth: 70 },
@@ -358,7 +400,7 @@
       ];
 
       var chatConfigColumns = [
-        { field: 'chat_id', title: '群聊', contentWidth: 166, templet: function (d) { return '<div class="task-identity"><strong>' + escape_html(d.chat_id) + '</strong><small>记录 ID ' + escape_html(d.last_read_message_id) + '</small></div>'; } },
+        { field: 'chat_id', title: '群聊 / 本地保存目录', contentWidth: 260, templet: chat_identity },
         { field: 'status', title: '状态', contentWidth: 84, templet: function (d) { return format_status_badge(d.status); } },
         {
           field: 'progress',
@@ -507,7 +549,9 @@
 
       table.on('tool(chat_config_list)', function (obj) {
         var data = obj.data;
-        if (obj.event === 'start') {
+        if (obj.event === 'open_directory') {
+          open_chat_directory(data, $(this));
+        } else if (obj.event === 'start') {
           post_chat_action('start_chat_download', { chat_id: data.chat_id }, function () {
             form_feedback('任务已启动', 'success');
           });

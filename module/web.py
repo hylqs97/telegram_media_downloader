@@ -1,16 +1,19 @@
 """web ui for media download"""
 
 import asyncio
+import ipaddress
 import logging
 import os
 import threading
+import time
 from typing import Callable, Optional
+from urllib.parse import urlsplit
 
 from flask import Flask, jsonify, render_template, request
 from flask_login import LoginManager, UserMixin, login_required, login_user
 
 import utils
-from module.app import Application
+from module.app import Application, ChatDownloadConfig
 from module.download_stat import (
     DownloadState,
     get_download_result,
@@ -35,6 +38,8 @@ deAesCrypt = AesBase64("1234123412ABCDEF", "ABCDEF1234123412")
 _application: Optional[Application] = None
 _download_client = None
 _start_chat_download_handler: Optional[Callable] = None
+_chat_title_checks: dict = {}
+_chat_title_lock = threading.Lock()
 
 
 class User(UserMixin):
@@ -97,6 +102,7 @@ def init_web(
     _application = app
     _download_client = download_client
     _start_chat_download_handler = start_chat_download_handler
+    _chat_title_checks.clear()
     if app.web_login_secret:
         web_login_users = {"root": app.web_login_secret}
     else:
@@ -209,6 +215,88 @@ def _chat_download_status(chat_config) -> str:
     return "idle"
 
 
+async def _refresh_chat_title(client, chat_id, chat_config: ChatDownloadConfig) -> None:
+    """Resolve a title without blocking the web thread or starting downloads."""
+    try:
+        chat = await asyncio.wait_for(client.get_chat(chat_id), timeout=15)
+        chat_config.chat_title = chat.title or str(chat_id)
+    except Exception:  # Metadata must not make the task table unavailable.
+        pass
+
+
+def _schedule_chat_title(chat_id, chat_config: ChatDownloadConfig) -> None:
+    """Bound Telegram metadata lookups independently of table polling."""
+    if (
+        not _application
+        or not _download_client
+        or not _download_client.is_connected
+        or not _application.loop.is_running()
+    ):
+        return
+
+    now = time.monotonic()
+    with _chat_title_lock:
+        checked_at = _chat_title_checks.get(chat_id)
+        if checked_at is not None and now - checked_at < 300:
+            return
+        _chat_title_checks[chat_id] = now
+
+    refresh = _refresh_chat_title(_download_client, chat_id, chat_config)
+    try:
+        asyncio.run_coroutine_threadsafe(refresh, _application.loop)
+    except RuntimeError:
+        refresh.close()
+
+
+def _is_loopback(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return host.lower() == "localhost"
+
+
+def _local_directory_request() -> bool:
+    """Reject remote callers, DNS rebinding hosts, and cross-origin launches."""
+    host = urlsplit(request.host_url).hostname or ""
+    if not _is_loopback(request.remote_addr or "") or not _is_loopback(host):
+        return False
+    origin = request.headers.get("Origin")
+    if origin and origin != request.host_url.rstrip("/"):
+        return False
+    return request.headers.get("Sec-Fetch-Site") not in ("cross-site", "same-site")
+
+
+def _chat_directory_info(chat_id, chat_config: ChatDownloadConfig) -> dict:
+    """Derive a directory only from trusted application state."""
+    assert _application is not None
+    directory = _application.get_chat_save_path(chat_id, chat_config.chat_title)
+    error = ""
+    if directory is None:
+        directory = os.path.abspath(_application.save_path)
+        error = "title_unavailable"
+    else:
+        root = os.path.realpath(_application.save_path)
+        target = os.path.realpath(directory)
+        try:
+            contained = os.path.commonpath([root, target]) == root
+        except ValueError:
+            contained = False
+        if not contained:
+            error = "outside_download_root"
+        elif not os.path.isdir(target):
+            error = "directory_missing"
+
+    if not error and os.name != "nt":
+        error = "unsupported_platform"
+    if not error and not _local_directory_request():
+        error = "local_access_required"
+    return {
+        "save_directory": directory,
+        "can_open_directory": not error,
+        "directory_error": error,
+    }
+
+
 def _chat_config_rows():
     """Build rows for the chat config table."""
     if not _application:
@@ -216,6 +304,7 @@ def _chat_config_rows():
 
     rows = []
     for chat_id, chat_config in _application.chat_download_config.items():
+        _schedule_chat_title(chat_id, chat_config)
         progress = 0
         if chat_config.total_task:
             progress = round(chat_config.finish_task / chat_config.total_task * 100, 1)
@@ -223,6 +312,8 @@ def _chat_config_rows():
         rows.append(
             {
                 "chat_id": str(chat_id),
+                "chat_title": chat_config.chat_title,
+                **_chat_directory_info(chat_id, chat_config),
                 "last_read_message_id": chat_config.last_read_message_id,
                 "download_filter": chat_config.download_filter or "",
                 "start_date": chat_config.start_date or "",
@@ -256,6 +347,35 @@ def get_chat_configs():
     """Get configured chat downloads."""
     data = _chat_config_rows()
     return jsonify({"code": 0, "count": len(data), "data": data})
+
+
+@_flask_app.route("/open_chat_directory", methods=["POST"])
+@login_required
+def open_chat_directory():
+    """Open a configured download directory on the local Windows computer."""
+    if not _local_directory_request():
+        return jsonify({"code": 1, "error": "local_access_required"}), 403
+    if not request.is_json:
+        return jsonify({"code": 1, "error": "json_required"}), 400
+    if not _application:
+        return jsonify({"code": 1, "error": "application_not_ready"}), 503
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get("chat_id"), str):
+        return jsonify({"code": 1, "error": "chat_not_found"}), 400
+    chat_id = _application.resolve_chat_id(data["chat_id"])
+    chat_config = _application.chat_download_config.get(chat_id)
+    if not chat_config:
+        return jsonify({"code": 1, "error": "chat_not_found"}), 404
+
+    directory_info = _chat_directory_info(chat_id, chat_config)
+    if not directory_info["can_open_directory"]:
+        return jsonify({"code": 1, "error": directory_info["directory_error"]}), 400
+    try:
+        os.startfile(os.path.realpath(directory_info["save_directory"]), "explore")
+    except OSError:
+        return jsonify({"code": 1, "error": "open_directory_failed"}), 500
+    return jsonify({"code": 0})
 
 
 @_flask_app.route("/save_chat_config", methods=["POST"])
@@ -314,6 +434,8 @@ def delete_chat_config():
         return jsonify({"code": 1, "msg": "stop the chat before deleting it"})
 
     _application.delete_chat_download_config(resolved_chat_id)
+    with _chat_title_lock:
+        _chat_title_checks.pop(resolved_chat_id, None)
     _application.update_config()
     return jsonify({"code": 0, "msg": "deleted"})
 

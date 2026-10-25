@@ -302,6 +302,7 @@ class ChatDownloadConfig:
 
     def __init__(self):
         self.ids_to_retry_dict: dict = {}
+        self.chat_title: str = ""
 
         # need storage
         self.download_filter: str = None
@@ -782,6 +783,7 @@ class Application:
 
         if origin_key in self.chat_download_config and origin_key != normalized_chat_id:
             chat_config = self.chat_download_config.pop(origin_key)
+            chat_config.chat_title = ""
         else:
             chat_config = self.chat_download_config.get(
                 normalized_chat_id, ChatDownloadConfig()
@@ -913,6 +915,22 @@ class Application:
 
         return ret
 
+    def get_chat_save_path(
+        self, chat_id: Union[int, str], chat_title: Optional[str] = None
+    ) -> Optional[str]:
+        """Return the stable directory before per-file date/type components."""
+        directory = self.save_path
+        for prefix in self.file_path_prefix:
+            if prefix in ("media_datetime", "media_type"):
+                break
+            if prefix == "chat_id":
+                directory = os.path.join(directory, validate_title(str(chat_id)))
+            elif prefix == "chat_title":
+                if not chat_title:
+                    return None
+                directory = os.path.join(directory, validate_title(chat_title))
+        return os.path.abspath(directory)
+
     def get_file_save_path(
         self,
         media_type: str,
@@ -941,6 +959,9 @@ class Application:
         str
             file save path prefix
         """
+
+        if chat_title and chat_id in self.chat_download_config:
+            self.chat_download_config[chat_id].chat_title = chat_title
 
         chat_id_dir = validate_title(f"{chat_id}")
         chat_title_dir = validate_title(f"{chat_title or chat_id}")

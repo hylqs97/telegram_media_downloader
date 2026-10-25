@@ -35,6 +35,8 @@
 
 The download manager opens on chat tasks, with an adjacent editor for message offsets, file sizes, dates, and filter expressions. Queue and completed records have separate views; task rows stack on phones. Processed counts include successful, skipped, and failed tasks, while completed records show transfers that reached 100% during the current run.
 
+Chat tasks show their title, ID, and local save directory. On Windows, click an existing directory to open File Explorer on the service computer. Opening directories requires local access through `localhost` or a loopback IP; remote browsers can only view paths. Date/type subdirectories are grouped under their shared parent, and viewing a task never creates missing directories.
+
 
 <img alt="Code style: black" style="width:100%; high:60%;" src="./screenshot/web_ui.gif"/>
 

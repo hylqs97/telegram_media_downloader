@@ -106,6 +106,17 @@ body.dashboard-page { background: var(--color-paper-3); }
 .task-identity { display: flex; flex-direction: column; gap: var(--space-2xs); font-variant-numeric: tabular-nums; }
 .task-identity strong { font-size: var(--text-sm); font-weight: 500; }
 .task-identity small, .rule-detail { color: var(--color-muted); font-size: var(--text-xs); }
+.task-identity strong, .task-identity small { overflow-wrap: anywhere; }
+.task-directory-label { margin-top: var(--space-xs); color: var(--color-muted); font-size: var(--text-xs); }
+.directory-link { display: flex; align-items: flex-start; gap: var(--space-xs); width: 100%; min-width: 0; padding: var(--space-2xs) 0; border: 0; background: var(--color-clear); color: var(--color-accent); text-align: left; font: inherit; font-size: var(--text-xs); line-height: 1.5; cursor: pointer; }
+.directory-link .layui-icon { flex-shrink: 0; font-size: 16px; }
+.directory-link > span { min-width: 0; overflow-wrap: anywhere; }
+.directory-link:hover > span { text-decoration: underline; }
+.directory-link:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.directory-link:disabled { color: var(--color-muted); cursor: not-allowed; }
+.directory-link:disabled > span { text-decoration: none; }
+.directory-link[aria-busy="true"] { cursor: progress; }
+.directory-status { line-height: 1.5; }
 .rule-summary { display: flex; flex-direction: column; gap: var(--space-2xs); text-align: left; min-width: 0; }
 .rule-expression { font-size: var(--text-xs); overflow-wrap: anywhere; }
 .rule-detail { line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }

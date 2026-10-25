@@ -120,6 +120,43 @@ class AppTestCase(unittest.TestCase):
             False,
         )
 
+    def test_get_chat_save_path(self):
+        app = Application("", "")
+        root = app.save_path
+        for prefixes, title, expected in [
+            (["chat_id", "media_datetime"], None, os.path.join(root, "-100123")),
+            (["chat_title", "media_datetime"], "Chat", os.path.join(root, "Chat")),
+            (["chat_title", "media_type"], None, None),
+            (["media_datetime", "chat_id"], None, root),
+            (["media_type", "chat_title"], None, root),
+            (["chat_id", "chat_title"], "Chat", os.path.join(root, "-100123", "Chat")),
+            ([], None, root),
+        ]:
+            with self.subTest(prefixes=prefixes, title=title):
+                app.file_path_prefix = prefixes
+                self.assertEqual(app.get_chat_save_path(-100123, title), expected)
+
+        app.save_path = "relative_downloads"
+        app.file_path_prefix = ["chat_id"]
+        self.assertEqual(
+            app.get_chat_save_path(-100123),
+            os.path.abspath(os.path.join("relative_downloads", "-100123")),
+        )
+
+    def test_download_path_caches_title_without_changing_layout(self):
+        app = Application("", "")
+        app.chat_download_config[-100123] = ChatDownloadConfig()
+        path = app.get_file_save_path("video", -100123, "2026_10", "Renamed Chat")
+        self.assertEqual(app.chat_download_config[-100123].chat_title, "Renamed Chat")
+        self.assertEqual(path, os.path.join(app.save_path, "-100123", "2026_10"))
+
+    def test_changing_chat_id_clears_cached_title(self):
+        app = Application("", "")
+        app.chat_download_config[-100123] = ChatDownloadConfig()
+        app.chat_download_config[-100123].chat_title = "Old Chat"
+        app.upsert_chat_download_config(-100456, origin_chat_id=-100123)
+        self.assertEqual(app.chat_download_config[-100456].chat_title, "")
+
     def test_upsert_chat_config(self):
         app = Application("", "")
         app.config["chat"] = []
