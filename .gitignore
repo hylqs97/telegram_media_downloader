@@ -72,3 +72,8 @@ config.yaml
 data.yaml
 *.scss
 *.css.map
+
+# Local browser validation artifacts
+.playwright-cli/
+output/playwright/
+module/templates/.hallmark/

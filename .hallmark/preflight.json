@@ -1,0 +1,16 @@
+{
+  "scanned": "2026-10-25",
+  "scope": "app",
+  "mode": "redesign",
+  "findings": {
+    "fonts": "Layui system sans; no locked brand fonts (module/templates/index.html:8)",
+    "palette": "CSS custom properties, blue accent and status colours (module/static/css/index.css:1)",
+    "motion": "CSS hover effects and Layui progress bars; no frontend framework",
+    "spacing": "Existing rounded nested panels and large introductory header",
+    "framework": "Flask/Jinja, Layui and inline jQuery (module/templates/index.html:197)",
+    "routes": "Dashboard at /; chat CRUD, global pause, start/stop, progress and completed file endpoints (module/web.py)",
+    "git": "Tracked source clean; unrelated untracked file d preserved"
+  },
+  "preserve": ["All backend routes", "All existing form field names and script hooks", "Three manager views", "Login flow", "Runtime settings and download files"],
+  "introduce": ["Wayfind app-screen theme", "Chinese labels", "Compact task table and rule editor", "Accessible controls", "Responsive layout and explicit request states"]
+}

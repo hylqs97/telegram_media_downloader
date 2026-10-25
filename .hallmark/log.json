@@ -1,0 +1,33 @@
+[
+ {
+  "date": "2026-10-25",
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "app",
+  "shape": "app screen",
+  "theme": "wayfind",
+  "axes": "light/sans/cool",
+  "nav": "existing three-view manager",
+  "footer": "version and transfer status",
+  "imagery": "none, live application data",
+  "photos": [],
+  "signature": "chat task ledger beside the filter editor",
+  "sections": [
+   "compact header",
+   "metrics row",
+   "three-view workspace",
+   "inline rule editor"
+  ],
+  "waived": [],
+  "prompt": "Redesign the Telegram download management screen with Hallmark; preserve all existing controls and APIs, use Chinese compact operational layout.",
+  "verification": {
+   "browser_checks": 39,
+   "regression_passed": 34,
+   "regression_skipped": 1,
+   "compiled_static_floor_fail": 0,
+   "compiled_static_reflex": 0,
+   "kept_fields": "8/8",
+   "review": "in-thread"
+  }
+ }
+]

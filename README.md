@@ -33,6 +33,8 @@
 > After running, open a browser and visit `localhost:5000`
 > If it is a remote machine, you need to configure web_host: 0.0.0.0
 
+The download manager opens on chat tasks, with an adjacent editor for message offsets, file sizes, dates, and filter expressions. Queue and completed records have separate views; task rows stack on phones. Processed counts include successful, skipped, and failed tasks, while completed records show transfers that reached 100% during the current run.
+
 
 <img alt="Code style: black" style="width:100%; high:60%;" src="./screenshot/web_ui.gif"/>
 

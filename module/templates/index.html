@@ -1,165 +1,129 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Telegram Media Downloader</title>
+  <meta name="description" content="Telegram 媒体下载管理：群聊任务、过滤规则、下载队列与已完成记录。">
+  <title>下载管理 | Telegram Media Downloader</title>
+  <link rel="icon" href="data:,">
   <link href="{{ url_for('static', filename='layui/css/layui.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/index.css') }}" rel="stylesheet">
 </head>
 
 <body class="dashboard-page">
   <div class="dashboard-shell">
-    <header class="hero-card">
-      <div class="hero-copy">
-        <span class="eyebrow">Realtime download control</span>
-        <h1>Telegram Media Downloader</h1>
-        <p>Monitor active jobs, review completed files, and manage chat rules from one calm, focused workspace.</p>
+    <header class="app-header">
+      <div class="app-identity">
+        <i class="layui-icon layui-icon-download-circle app-mark" aria-hidden="true"></i>
+        <div class="app-title">
+          <h1>下载管理</h1>
+          <p>Telegram Media Downloader</p>
+        </div>
       </div>
-      <div class="hero-actions">
+      <div class="header-actions">
+        <span class="queue-status" id="queue_status" role="status">
+          <i class="layui-icon layui-icon-play" aria-hidden="true"></i>
+          <span>队列状态载入中</span>
+        </span>
         <button type="button" class="state-toggle" id="download_state" data-value="{{ download_state }}"
           onclick="download_state_change(this)">
-          <span class="state-toggle__label">Queue</span>
-          <span class="state-toggle__value">{{ download_state }}</span>
-          <span class="state-toggle__hint">{{ 'Resume queue' if download_state == 'pause' else 'Pause queue' }}</span>
+          <i class="layui-icon layui-icon-pause" aria-hidden="true"></i>
+          <span class="state-toggle__value visually-hidden">{{ download_state }}</span>
+          <span class="state-toggle__hint">{{ '暂停队列' if download_state == 'pause' else '继续队列' }}</span>
         </button>
-        <div class="hero-meta">
-          <span class="meta-pill">Version <b id="app_version">—</b></span>
-          <span class="meta-pill">Synced <b id="last_refresh_title">—</b></span>
-        </div>
       </div>
     </header>
 
-    <section class="stats-grid" aria-label="Download summary">
-      <article class="stat-card stat-card--active">
-        <span class="stat-card__label">Active downloads</span>
-        <strong id="active_download_count">0</strong>
-        <span class="stat-card__hint">Currently in progress</span>
-      </article>
-      <article class="stat-card stat-card--done">
-        <span class="stat-card__label">Completed files</span>
-        <strong id="finished_download_count">0</strong>
-        <span class="stat-card__hint">Moved to the archive</span>
-      </article>
-      <article class="stat-card stat-card--chat">
-        <span class="stat-card__label">Managed chats</span>
-        <strong id="chat_config_count">0</strong>
-        <span class="stat-card__hint">Rules currently saved</span>
-      </article>
-      <article class="stat-card stat-card--speed">
-        <span class="stat-card__label">Total speed</span>
-        <strong id="download_speed_title">0.00 B/s</strong>
-        <span class="stat-card__hint">Combined transfer rate</span>
-      </article>
-    </section>
+    <dl class="metrics" aria-label="下载概况">
+      <div class="metric"><dt>管理群聊</dt><dd><strong id="chat_config_count">…</strong><span class="metric-unit">个</span></dd></div>
+      <div class="metric"><dt>待传输记录</dt><dd><strong id="active_download_count">…</strong><span class="metric-unit">项</span></dd></div>
+      <div class="metric"><dt>本次已完成</dt><dd><strong id="finished_download_count">…</strong><span class="metric-unit">个文件</span></dd></div>
+      <div class="metric"><dt>总下载速度</dt><dd><strong id="download_speed_title">…</strong></dd></div>
+    </dl>
 
-    <main class="workspace-card">
-      <div class="workspace-header">
-        <div>
-          <p class="section-kicker">Workspace</p>
-          <h2>Live queue and chat management</h2>
-          <p>Active jobs refresh every second, finished jobs move to the archive, and chat settings update as you edit them.</p>
-        </div>
-        <div class="workspace-meta">
-          <span class="section-badge">
-            <i class="layui-icon layui-icon-refresh-1"></i>
-            <b id="last_refresh_title_inline">Waiting for first refresh…</b>
-          </span>
-        </div>
-      </div>
-
+    <main class="workspace">
       <div class="layui-tab dashboard-tabs" lay-filter="telegram_media_downloader">
-        <ul class="layui-tab-title dashboard-tab-title">
-          <li class="layui-this"><i class="layui-icon layui-icon-transfer"></i><span>Downloading</span></li>
-          <li><i class="layui-icon layui-icon-list"></i><span>Downloaded</span></li>
-          <li><i class="layui-icon layui-icon-template-1"></i><span>Chats</span></li>
+        <ul class="layui-tab-title dashboard-tab-title" role="tablist" aria-label="下载视图">
+          <li lay-id="queue"><button type="button" role="tab" id="tab_queue" aria-selected="false" aria-controls="panel_queue" tabindex="-1"><i class="layui-icon layui-icon-transfer" aria-hidden="true"></i><span>下载队列</span><span class="tab-count" id="queue_tab_count">0</span></button></li>
+          <li lay-id="history"><button type="button" role="tab" id="tab_history" aria-selected="false" aria-controls="panel_history" tabindex="-1"><i class="layui-icon layui-icon-list" aria-hidden="true"></i><span>已完成</span><span class="tab-count" id="history_tab_count">0</span></button></li>
+          <li lay-id="chats" class="layui-this"><button type="button" role="tab" id="tab_chats" aria-selected="true" aria-controls="panel_chats"><i class="layui-icon layui-icon-template-1" aria-hidden="true"></i><span>群聊任务</span><span class="tab-count" id="chats_tab_count">0</span></button></li>
         </ul>
         <div class="layui-tab-content dashboard-tab-content">
-          <section class="layui-tab-item layui-show">
-            <div class="table-card">
-              <div class="table-card__header">
-                <div>
-                  <h3>Live downloads</h3>
-                  <p>Shows only active rows; completed items move to the archive automatically.</p>
-                </div>
-              </div>
-              <table class="layui-hide" id="download_list" lay-filter="download_list"></table>
+          <section class="layui-tab-item" role="tabpanel" id="panel_queue" aria-labelledby="tab_queue">
+            <div class="view-header">
+              <h2>下载队列</h2>
+              <span class="view-meta" id="queue_view_state" role="status">等待数据</span>
             </div>
+            <div class="view-notice" id="queue_error" role="alert" hidden><i class="layui-icon layui-icon-tips" aria-hidden="true"></i><span class="notice-text"></span><button type="button" class="icon-button" data-retry="queue" aria-label="重试加载下载队列" data-tip="重试加载"><i class="layui-icon layui-icon-refresh-1" aria-hidden="true"></i></button></div>
+            <table class="layui-hide" id="download_list" lay-filter="download_list"></table>
           </section>
 
-          <section class="layui-tab-item">
-            <div class="table-card">
-              <div class="table-card__header">
-                <div>
-                  <h3>Completed downloads</h3>
-                  <p>Everything that has reached 100% is listed here with its final save path.</p>
-                </div>
-              </div>
-              <table class="layui-hide" id="already_download_list" lay-filter="already_download_list"></table>
+          <section class="layui-tab-item" role="tabpanel" id="panel_history" aria-labelledby="tab_history">
+            <div class="view-header">
+              <h2>已完成记录</h2>
+              <span class="view-meta" id="history_view_state" role="status">本次运行</span>
             </div>
+            <div class="view-notice" id="history_error" role="alert" hidden><i class="layui-icon layui-icon-tips" aria-hidden="true"></i><span class="notice-text"></span><button type="button" class="icon-button" data-retry="history" aria-label="重试加载已完成记录" data-tip="重试加载"><i class="layui-icon layui-icon-refresh-1" aria-hidden="true"></i></button></div>
+            <table class="layui-hide" id="already_download_list" lay-filter="already_download_list"></table>
           </section>
 
-          <section class="layui-tab-item">
-            <div class="table-card table-card--stacked">
-              <div class="table-card__header table-card__header--split">
-                <div>
-                  <h3>Chat configuration</h3>
-                  <p>Create or edit download rules, then start or stop a chat with one click.</p>
-                </div>
-                <span class="section-badge section-badge--soft">
-                  <i class="layui-icon layui-icon-engine"></i>
-                  <b>Auto refresh enabled while tab is open</b>
-                </span>
-              </div>
-
+          <section class="layui-tab-item layui-show" role="tabpanel" id="panel_chats" aria-labelledby="tab_chats">
+            <div class="view-header">
+              <h2>群聊任务</h2>
+              <span class="refresh-meta"><i class="layui-icon layui-icon-refresh-1" aria-hidden="true"></i>更新于 <time id="last_refresh_title_inline">…</time></span>
+            </div>
+            <div class="view-notice" id="chats_error" role="alert" hidden><i class="layui-icon layui-icon-tips" aria-hidden="true"></i><span class="notice-text"></span><button type="button" class="icon-button" data-retry="chats" aria-label="重试加载群聊任务" data-tip="重试加载"><i class="layui-icon layui-icon-refresh-1" aria-hidden="true"></i></button></div>
+            <div class="chat-workbench">
+              <div class="task-region"><table class="layui-hide" id="chat_config_list" lay-filter="chat_config_list"></table></div>
+              <details class="config-editor" id="config_editor" open>
+                <summary><h3>下载规则</h3><span class="editor-mode" id="editor_mode">新建任务</span><i class="layui-icon layui-icon-down" aria-hidden="true"></i></summary>
               <form class="layui-form chat-config-form" lay-filter="chat_config_form">
                 <input type="hidden" name="origin_chat_id" id="origin_chat_id">
                 <div class="chat-form-grid">
-                  <label class="field-stack">
-                    <span>Chat ID</span>
-                    <input type="text" name="chat_id" required lay-verify="required" placeholder="Required chat identifier"
+                  <label class="field-stack field-stack--wide">
+                    <span>群聊 ID <small class="required-mark">必填</small></span>
+                    <input type="text" name="chat_id" required aria-required="true" lay-verify="required" placeholder="-1001234567890"
                       autocomplete="off" class="layui-input">
-                  </label>
-                  <label class="field-stack">
-                    <span>Last message ID</span>
-                    <input type="number" name="last_read_message_id" placeholder="Optional checkpoint"
-                      autocomplete="off" class="layui-input">
-                  </label>
-                  <label class="field-stack">
-                    <span>Minimum size</span>
-                    <input type="text" name="file_size_min" placeholder="Example: 10 MB"
-                      autocomplete="off" class="layui-input">
-                  </label>
-                  <label class="field-stack">
-                    <span>Maximum size</span>
-                    <input type="text" name="file_size_max" placeholder="Example: 500 MB"
-                      autocomplete="off" class="layui-input">
-                  </label>
-                  <label class="field-stack">
-                    <span>Start date</span>
-                    <input type="text" id="start_date_input" name="start_date" autocomplete="off" class="layui-input date-input" placeholder="YYYY-MM-DD">
-                  </label>
-                  <label class="field-stack">
-                    <span>End date</span>
-                    <input type="text" id="end_date_input" name="end_date" autocomplete="off" class="layui-input date-input" placeholder="YYYY-MM-DD">
                   </label>
                   <label class="field-stack field-stack--wide">
-                    <span>Download filter</span>
-                    <input type="text" name="download_filter" placeholder="Keyword or rule expression"
+                    <span>消息起点</span>
+                    <input type="number" name="last_read_message_id" min="0" placeholder="0"
+                      autocomplete="off" class="layui-input">
+                  </label>
+                  <label class="field-stack">
+                    <span>最小文件</span>
+                    <input type="text" name="file_size_min" placeholder="10 MB"
+                      autocomplete="off" class="layui-input">
+                  </label>
+                  <label class="field-stack">
+                    <span>最大文件</span>
+                    <input type="text" name="file_size_max" placeholder="500 MB"
+                      autocomplete="off" class="layui-input">
+                  </label>
+                  <label class="field-stack">
+                    <span>开始日期</span>
+                    <span class="date-field"><input type="text" id="start_date_input" name="start_date" autocomplete="off" class="layui-input date-input" placeholder="YYYY-MM-DD"><i class="layui-icon layui-icon-date" aria-hidden="true"></i></span>
+                  </label>
+                  <label class="field-stack">
+                    <span>结束日期</span>
+                    <span class="date-field"><input type="text" id="end_date_input" name="end_date" autocomplete="off" class="layui-input date-input" placeholder="YYYY-MM-DD"><i class="layui-icon layui-icon-date" aria-hidden="true"></i></span>
+                  </label>
+                  <label class="field-stack field-stack--wide">
+                    <span>过滤表达式</span>
+                    <input type="text" name="download_filter" placeholder="file_size &lt; 500MB"
                       autocomplete="off" class="layui-input">
                   </label>
                   <div class="field-stack field-stack--actions">
-                    <span class="field-stack__spacer">Actions</span>
                     <div class="chat-config-actions">
-                      <button class="layui-btn layui-btn-sm" lay-submit lay-filter="save_chat_config">Save</button>
-                      <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" id="reset_chat_config">New</button>
+                      <button type="submit" class="layui-btn layui-btn-sm primary-button" lay-submit lay-filter="save_chat_config"><i class="layui-icon layui-icon-ok" aria-hidden="true"></i><span>保存规则</span></button>
+                      <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" id="reset_chat_config"><i class="layui-icon layui-icon-add-1" aria-hidden="true"></i>新建</button>
                     </div>
                   </div>
+                  <p class="form-feedback" id="form_feedback" role="status" aria-live="polite"></p>
                 </div>
               </form>
-
-              <table class="layui-hide" id="chat_config_list" lay-filter="chat_config_list"></table>
+              </details>
             </div>
           </section>
         </div>
@@ -167,17 +131,19 @@
     </main>
 
     <footer class="page-footer">
-      <span>Telegram Media Downloader v<b id="app_version_footer">—</b></span>
-      <span>Realtime download speed: <b id="download_speed_title_footer">0.00 B/s</b></span>
+      <span class="footer-brand">Telegram Media Downloader <span>v<b id="app_version">…</b><b class="visually-hidden" id="app_version_footer"></b></span></span>
+      <span>总下载速度 <b id="download_speed_title_footer">…</b><span class="visually-hidden" id="last_refresh_title"></span></span>
     </footer>
   </div>
 
+  <noscript><p class="noscript-message">页面脚本未运行，下载数据暂不可用。</p></noscript>
+
   <script type="text/html" id="chat_config_actions">
     <div class="chat-action-bar">
-      <a class="layui-btn layui-btn-sm chat-action-btn chat-action-btn--start" lay-event="start">Start</a>
-      <a class="layui-btn layui-btn-sm layui-btn-warm chat-action-btn" lay-event="stop">Stop</a>
-      <a class="layui-btn layui-btn-sm layui-btn-normal chat-action-btn" lay-event="edit">Edit</a>
-      <a class="layui-btn layui-btn-sm layui-btn-danger chat-action-btn" lay-event="delete">Delete</a>
+      <button type="button" class="icon-button chat-action-btn chat-action-btn--start" lay-event="start" aria-label="开始下载" data-tip="开始下载"><i class="layui-icon layui-icon-play" aria-hidden="true"></i></button>
+      <button type="button" class="icon-button chat-action-btn" lay-event="stop" aria-label="停止任务" data-tip="停止任务"><i class="layui-icon layui-icon-pause" aria-hidden="true"></i></button>
+      <button type="button" class="icon-button chat-action-btn" lay-event="edit" aria-label="编辑规则" data-tip="编辑规则"><i class="layui-icon layui-icon-edit" aria-hidden="true"></i></button>
+      <button type="button" class="icon-button chat-action-btn chat-action-btn--delete" lay-event="delete" aria-label="删除任务" data-tip="删除任务"><i class="layui-icon layui-icon-delete" aria-hidden="true"></i></button>
     </div>
   </script>
 
@@ -197,6 +163,9 @@
       var update_download_list_int = null;
       var update_already_download_list_int = null;
       var update_chat_config_int = null;
+      var update_download_status_int = null;
+      var view_names = ['queue', 'history', 'chats'];
+      var loading_rows = '<span class="table-skeleton" role="status" aria-label="正在读取数据"><span></span><span></span><span></span></span>';
 
       function text_width(value) {
         var text = value == null ? '' : String(value);
@@ -241,10 +210,19 @@
       }
 
       function reload_table_by_content(tableInstance, columns, data) {
+        var serialized = JSON.stringify(data);
+        if (tableInstance.last_data === serialized) {
+          return;
+        }
+        tableInstance.last_data = serialized;
+        var scroll = $('div[lay-id="' + tableInstance.config.id + '"] .layui-table-main');
+        var scrollTop = scroll.scrollTop();
         tableInstance.reload({
           data: data,
+          text: { none: tableInstance.config.id === 'chat_config_list' ? '还没有群聊任务' : (tableInstance.config.id === 'download_list' ? '暂无待传输记录' : '本次运行暂无已完成记录') },
           cols: [fit_columns(columns, data)]
         });
+        $('div[lay-id="' + tableInstance.config.id + '"] .layui-table-main').scrollTop(scrollTop || 0);
       }
 
       function render_chat_action_rows() {
@@ -279,14 +257,31 @@
         $('#chat_config_count').text(chat_config_table_data.length);
         $('#download_speed_title_footer').text($('#download_speed_title').text());
         $('#app_version_footer').text($('#app_version').text());
+        $('#queue_tab_count').text(download_list_table_data.length);
+        $('#history_tab_count').text(already_download_list_data.length);
+        $('#chats_tab_count').text(chat_config_table_data.length);
       }
 
       function sync_download_state_button(value) {
         var button = $('#download_state');
         button.attr('data-value', value);
         button.find('.state-toggle__value').text(value);
-        button.find('.state-toggle__hint').text(value === 'pause' ? 'Resume queue' : 'Pause queue');
-        button.toggleClass('is-paused', value === 'pause');
+        var paused = value === 'continue';
+        button.find('.state-toggle__hint').text(paused ? '继续队列' : '暂停队列');
+        button.find('> .layui-icon').attr('class', 'layui-icon ' + (paused ? 'layui-icon-play' : 'layui-icon-pause'));
+        button.attr('aria-label', paused ? '继续队列' : '暂停队列');
+        button.toggleClass('is-paused', paused);
+        $('#queue_status').toggleClass('is-paused', paused).find('span').text(paused ? '队列已暂停' : '队列运行中');
+        $('#queue_status > .layui-icon').attr('class', 'layui-icon ' + (paused ? 'layui-icon-pause' : 'layui-icon-play'));
+        $('#queue_view_state').text(paused ? '队列已暂停' : '队列运行中');
+      }
+
+      function load_error(view, message) {
+        $('#' + view + '_error').prop('hidden', !message).find('.notice-text').text(message || '');
+      }
+
+      function form_feedback(message, state) {
+        $('#form_feedback').text(message || '').removeClass('is-error is-success').addClass(state ? 'is-' + state : '');
       }
 
       function load_app_version() {
@@ -302,6 +297,7 @@
       }
 
       window.download_state_change = function (button) {
+        $(button).prop('disabled', true).attr('aria-busy', 'true');
         $.ajax({
           url: 'set_download_state?state=' + button.dataset.value,
           type: 'post',
@@ -310,29 +306,34 @@
             sync_download_state_button(result);
             update_summary_cards();
             touch_refresh_time();
-          }
+            load_error('queue', '');
+          },
+          error: function () { layer.msg('队列状态未更新，请重试'); },
+          complete: function () { $(button).prop('disabled', false).attr('aria-busy', 'false'); }
         });
       };
 
-      function progress_bar(value, active_class) {
-        return '<div class="layui-progress layui-progress-big" lay-showpercent="true"><div class="layui-progress-bar ' + active_class + '" lay-percent="' + value + '%"></div></div>';
+      function progress_bar(value, active_class, detail) {
+        value = Math.max(0, Math.min(100, Number(value) || 0));
+        return '<div class="task-progress ' + (value === 100 ? 'progress-complete' : '') + '"><div class="task-progress__text"><span>' + escape_html(detail || '传输进度') + '</span><strong>' + value + '%</strong></div><div class="layui-progress" role="progressbar" aria-label="' + escape_html(detail || '传输进度') + '" aria-valuenow="' + value + '" aria-valuemin="0" aria-valuemax="100"><div class="layui-progress-bar ' + active_class + '" lay-percent="' + value + '%"></div></div></div>';
       }
 
       function format_status_badge(value) {
-        var status = value || 'idle';
-        return '<span class="status-pill status-pill--' + status + '">' + escape_html(status) + '</span>';
+        var labels = { running: '运行中', idle: '空闲', finished: '已处理完', stopped: '已停止' };
+        var status = labels[value] ? value : 'idle';
+        return '<span class="status-pill status-pill--' + status + '">' + labels[status] + '</span>';
       }
 
       var downloadListColumns = [
-        { field: 'chat', title: 'chat', minContentWidth: 92 },
-        { field: 'id', title: 'id', minContentWidth: 58 },
-        { field: 'filename', title: 'file name', align: 'center', minContentWidth: 160, maxContentWidth: 640, templet: function (d) { return '<span class="table-ellipsis" title="' + escape_html(d.filename) + '">' + escape_html(d.filename) + '</span>'; } },
-        { field: 'total_size', title: 'total size', align: 'center', minContentWidth: 92 },
+        { field: 'chat', title: '群聊 ID', contentWidth: 170 },
+        { field: 'id', title: '消息', contentWidth: 70 },
+        { field: 'filename', title: '文件名', contentWidth: 340, templet: function (d) { return '<span class="table-ellipsis" title="' + escape_html(d.filename) + '">' + escape_html(d.filename) + '</span>'; } },
+        { field: 'total_size', title: '大小', contentWidth: 110 },
         {
           field: 'download_progress',
-          title: 'progress',
+          title: '传输进度',
           align: 'center',
-          minContentWidth: 180,
+          contentWidth: 210,
           templet: function (d) {
             var progress = Number(d.download_progress) || 0;
             var barClass = 'layui-bg-blue';
@@ -346,48 +347,46 @@
             return progress_bar(progress, barClass);
           }
         },
-        { field: 'download_speed', title: 'speed', align: 'center', minContentWidth: 110 }
+        { field: 'download_speed', title: '下载速度', contentWidth: 120 }
       ];
 
       var alreadyDownloadColumns = [
-        { field: 'id', title: 'id', minContentWidth: 58 },
-        { field: 'filename', title: 'file name', align: 'center', minContentWidth: 160, maxContentWidth: 640, templet: function (d) { return '<span class="table-ellipsis" title="' + escape_html(d.filename) + '">' + escape_html(d.filename) + '</span>'; } },
-        { field: 'total_size', title: 'total size', align: 'center', minContentWidth: 92 },
-        { field: 'save_path', title: 'save path', align: 'center', minContentWidth: 180, maxContentWidth: 760, templet: function (d) { return '<span class="table-ellipsis table-ellipsis--path" title="' + escape_html(d.save_path) + '">' + escape_html(d.save_path) + '</span>'; } }
+        { field: 'id', title: '消息', contentWidth: 70 },
+        { field: 'filename', title: '文件名', contentWidth: 340, templet: function (d) { return '<span class="table-ellipsis" title="' + escape_html(d.filename) + '">' + escape_html(d.filename) + '</span>'; } },
+        { field: 'total_size', title: '大小', contentWidth: 110 },
+        { field: 'save_path', title: '保存路径', contentWidth: 500, templet: function (d) { return '<span class="table-ellipsis table-ellipsis--path" title="' + escape_html(d.save_path) + '">' + escape_html(d.save_path) + '</span>'; } }
       ];
 
       var chatConfigColumns = [
-        { field: 'chat_id', title: 'chat', minContentWidth: 110 },
-        { field: 'status', title: 'status', align: 'center', minContentWidth: 90, templet: function (d) { return format_status_badge(d.status); } },
-        { field: 'last_read_message_id', title: 'last id', align: 'center', minContentWidth: 78 },
-        { field: 'start_date', title: 'start date', align: 'center', minContentWidth: 104 },
-        { field: 'end_date', title: 'end date', align: 'center', minContentWidth: 104 },
-        { field: 'ids_to_retry', title: 'retry', align: 'center', minContentWidth: 62 },
-        { field: 'finish_task', title: 'done', align: 'center', minContentWidth: 62 },
-        { field: 'total_task', title: 'total', align: 'center', minContentWidth: 62 },
+        { field: 'chat_id', title: '群聊', contentWidth: 166, templet: function (d) { return '<div class="task-identity"><strong>' + escape_html(d.chat_id) + '</strong><small>记录 ID ' + escape_html(d.last_read_message_id) + '</small></div>'; } },
+        { field: 'status', title: '状态', contentWidth: 84, templet: function (d) { return format_status_badge(d.status); } },
         {
           field: 'progress',
-          title: 'progress',
+          title: '处理进度',
           align: 'center',
-          minContentWidth: 180,
+          contentWidth: 172,
           templet: function (d) {
             var value = d.progress || 0;
             var color = value == 100 ? 'layui-bg-green' : 'layui-bg-blue';
-            return progress_bar(value, color);
+            return progress_bar(value, color, '已处理 ' + (d.finish_task || 0) + ' / ' + (d.total_task || 0));
           }
         },
-        { field: 'file_size_min', title: 'min size', align: 'center', minContentWidth: 82 },
-        { field: 'file_size_max', title: 'max size', align: 'center', minContentWidth: 82 },
-        { field: 'download_filter', title: 'filter', minContentWidth: 100, maxContentWidth: 460, templet: function (d) { return '<span class="table-ellipsis" title="' + escape_html(d.download_filter) + '">' + escape_html(d.download_filter) + '</span>'; } },
-        { title: 'action', toolbar: '#chat_config_actions', contentWidth: 252, fixed: 'right', align: 'center' }
+        { field: 'ids_to_retry', title: '待重试', contentWidth: 72, align: 'center' },
+        { field: 'download_filter', title: '过滤规则', contentWidth: 194, templet: function (d) {
+          var sizes = (d.file_size_min || '不限') + ' / ' + (d.file_size_max || '不限');
+          var dates = (d.start_date || '不限') + ' 至 ' + (d.end_date || '不限');
+          return '<div class="rule-summary"><span class="rule-expression">' + escape_html(d.download_filter || '无附加表达式') + '</span><span class="rule-detail">大小 ' + escape_html(sizes) + '</span><span class="rule-detail">日期 ' + escape_html(dates) + '</span></div>';
+        } },
+        { field: 'actions', title: '操作', toolbar: '#chat_config_actions', contentWidth: 176, align: 'right' }
       ];
 
       var downloadListTable = table.render({
         elem: '#download_list',
         data: download_list_table_data,
         title: 'download_list',
-        height: 'full-320',
-        limit: 10000,
+        limit: 20,
+        page: { layout: ['prev', 'page', 'next', 'count', 'limit'], limits: [20, 50, 100] },
+        text: { none: loading_rows },
         cols: [fit_columns(downloadListColumns, download_list_table_data)],
         done: function () {
           element.render();
@@ -398,8 +397,9 @@
         elem: '#already_download_list',
         data: already_download_list_data,
         title: 'already_download_list',
-        height: 'full-320',
-        limit: 10000,
+        limit: 20,
+        page: { layout: ['prev', 'page', 'next', 'count', 'limit'], limits: [20, 50, 100] },
+        text: { none: loading_rows },
         cols: [fit_columns(alreadyDownloadColumns, already_download_list_data)],
         done: function () {
           element.render();
@@ -410,8 +410,9 @@
         elem: '#chat_config_list',
         data: chat_config_table_data,
         title: 'chat_config_list',
-        height: 'full-420',
-        limit: 10000,
+        limit: 20,
+        page: { layout: ['prev', 'page', 'next', 'count'], limits: [20] },
+        text: { none: loading_rows },
         cols: [fit_columns(chatConfigColumns, chat_config_table_data)],
         done: function () {
           element.render();
@@ -425,16 +426,25 @@
           type: 'get',
           dataType: 'json',
           success: function (result) {
+            if (result.code !== 0 || !Array.isArray(result.data)) {
+              load_error('chats', result.msg || '群聊数据未能读取，请重试');
+              return;
+            }
             chat_config_table_data = result.data || [];
             reload_table_by_content(chatConfigTable, chatConfigColumns, chat_config_table_data);
             update_summary_cards();
             touch_refresh_time();
-          }
+            load_error('chats', '');
+          },
+          error: function () { load_error('chats', '无法连接下载服务，群聊数据未更新'); }
         });
       }
 
       function reset_chat_form() {
         $('#origin_chat_id').val('');
+        $('#editor_mode').text('新建任务');
+        $('.chat-config-form [aria-invalid]').removeAttr('aria-invalid');
+        form_feedback('');
         form.val('chat_config_form', {
           origin_chat_id: '',
           chat_id: '',
@@ -445,9 +455,12 @@
           end_date: '',
           download_filter: ''
         });
+        sync_date_picker_limits();
       }
 
       function post_chat_action(url, data, success) {
+        var buttons = $('.chat-action-btn, [lay-filter="save_chat_config"]');
+        buttons.prop('disabled', true).attr('aria-busy', 'true');
         $.ajax({
           url: url,
           type: 'post',
@@ -455,14 +468,16 @@
           dataType: 'json',
           success: function (result) {
             if (result.code != 0) {
-              layer.msg(result.msg || 'failed');
+              form_feedback(result.msg || '操作未完成，请重试', 'error');
               return;
             }
             if (success) {
               success(result);
             }
             reload_chat_configs();
-          }
+          },
+          error: function () { form_feedback('无法连接下载服务，操作未完成', 'error'); },
+          complete: function () { buttons.prop('disabled', false).attr('aria-busy', 'false'); }
         });
       }
 
@@ -472,47 +487,54 @@
 
       form.on('submit(save_chat_config)', function (data) {
         if (!is_valid_date_range(data.field.start_date, data.field.end_date)) {
-          layer.msg('End date must be greater than or equal to start date');
+          $('#end_date_input').attr('aria-invalid', 'true').focus();
+          form_feedback('结束日期不能早于开始日期', 'error');
           return false;
         }
+        form_feedback('正在保存规则');
         post_chat_action('save_chat_config', data.field, function () {
           reset_chat_form();
-          layer.msg('Saved successfully');
+          form_feedback('规则已保存', 'success');
         });
         return false;
       });
 
       $('#reset_chat_config').on('click', function () {
         reset_chat_form();
-        layer.msg('Form cleared');
+        $('#config_editor').prop('open', true);
+        $('[name="chat_id"]').focus();
       });
 
       table.on('tool(chat_config_list)', function (obj) {
         var data = obj.data;
         if (obj.event === 'start') {
           post_chat_action('start_chat_download', { chat_id: data.chat_id }, function () {
-            layer.msg('Chat started');
+            form_feedback('任务已启动', 'success');
           });
         } else if (obj.event === 'stop') {
           post_chat_action('stop_chat_download', { chat_id: data.chat_id }, function () {
-            layer.msg('Chat stopped');
+            form_feedback('任务已停止', 'success');
           });
         } else if (obj.event === 'edit') {
           form.val('chat_config_form', {
             origin_chat_id: data.chat_id,
             chat_id: data.chat_id,
             last_read_message_id: data.last_read_message_id,
-            file_size_min: data.file_size_min_bytes || '',
-            file_size_max: data.file_size_max_bytes || '',
+            file_size_min: data.file_size_min_bytes == null ? '' : data.file_size_min_bytes,
+            file_size_max: data.file_size_max_bytes == null ? '' : data.file_size_max_bytes,
             start_date: data.start_date || '',
             end_date: data.end_date || '',
             download_filter: data.download_filter || ''
           });
-          layer.msg('Loaded into the form');
+          $('#editor_mode').text('编辑任务');
+          $('#config_editor').prop('open', true);
+          form_feedback('');
+          sync_date_picker_limits();
+          $('[name="chat_id"]').focus();
         } else if (obj.event === 'delete') {
-          layer.confirm('Delete ' + escape_html(data.chat_id) + '?', function (index) {
+          layer.confirm('删除群聊任务 ' + escape_html(data.chat_id) + '？', { title: '删除任务', btn: ['删除', '取消'] }, function (index) {
             post_chat_action('delete_chat_config', { chat_id: data.chat_id }, function () {
-              layer.msg('Chat deleted');
+              form_feedback('任务已删除', 'success');
             });
             layer.close(index);
           });
@@ -536,7 +558,9 @@
             update_summary_cards();
             touch_refresh_time();
             element.render();
-          }
+            load_error('queue', '');
+          },
+          error: function () { load_error('queue', '下载队列未能更新，请重试'); }
         });
       }
 
@@ -548,6 +572,9 @@
           success: function (result) {
             $('#download_speed_title').text(result.download_speed);
             $('#download_speed_title_footer').text(result.download_speed);
+          },
+          error: function () {
+            $('#download_speed_title, #download_speed_title_footer').text('连接中断');
           }
         });
       }
@@ -569,7 +596,9 @@
             update_summary_cards();
             touch_refresh_time();
             element.render();
-          }
+            load_error('history', '');
+          },
+          error: function () { load_error('history', '已完成记录未能更新，请重试'); }
         });
       }
 
@@ -657,8 +686,11 @@
       function sync_date_picker_limits() {
         var startValue = $('#start_date_input').val();
         var endValue = $('#end_date_input').val();
-        startDatePicker.config.max = to_laydate_limit(endValue, true);
-        endDatePicker.config.min = to_laydate_limit(startValue, false);
+        // Laydate parses strings asynchronously, then stores structured limits.
+        startDatePicker.config.max = typeof startDatePicker.config.max === 'object'
+          ? to_laydate_limit(endValue, true) : (endValue || '2099-12-31');
+        endDatePicker.config.min = typeof endDatePicker.config.min === 'object'
+          ? to_laydate_limit(startValue, false) : (startValue || '1970-01-01');
       }
 
       $('#start_date_input, #end_date_input').on('change blur', function () {
@@ -670,7 +702,7 @@
           } else {
             $('#start_date_input').val(endValue);
           }
-          layer.msg('Date range adjusted: end date cannot be earlier than start date');
+          form_feedback('日期范围已调整，结束日期不能早于开始日期');
         }
         sync_date_picker_limits();
       });
@@ -680,35 +712,71 @@
       load_app_version();
       sync_download_state_button($('#download_state').attr('data-value'));
       update_download_status();
-      update_download_list_int = start_download_timer();
       update_download_status_int = self.setInterval(update_download_status, 1000);
+      update_download_list();
+      update_already_download_list();
       reload_chat_configs();
 
-      element.on('tab(telegram_media_downloader)', function (data) {
-        if (data.index != 0) {
+      function select_view(index, update_url) {
+        $('.dashboard-tab-title [role="tab"]').each(function (i) {
+          $(this).attr('aria-selected', i === index ? 'true' : 'false').attr('tabindex', i === index ? '0' : '-1');
+        });
+        if (update_url) {
+          var url = new URL(window.location.href);
+          url.searchParams.set('view', view_names[index]);
+          window.history.replaceState(null, '', url);
+        }
+        if (index != 0) {
           update_download_list_int = stop_timer(update_download_list_int);
         }
-        if (data.index == 0 && !update_download_list_int) {
+        if (index == 0 && !update_download_list_int) {
           update_download_list_int = start_download_timer();
         }
 
-        if (data.index != 1) {
+        if (index != 1) {
           update_already_download_list_int = stop_timer(update_already_download_list_int);
         }
-        if (data.index == 1 && !update_already_download_list_int) {
+        if (index == 1 && !update_already_download_list_int) {
           update_already_download_list_int = start_already_timer();
         }
 
-        if (data.index != 2) {
+        if (index != 2) {
           update_chat_config_int = stop_timer(update_chat_config_int);
         }
-        if (data.index == 2 && !update_chat_config_int) {
+        if (index == 2 && !update_chat_config_int) {
           update_chat_config_int = start_chat_timer();
         }
+        table.resize();
+      }
+
+      element.on('tab(telegram_media_downloader)', function (data) {
+        select_view(data.index, true);
       });
 
-      touch_refresh_time();
-      update_summary_cards();
+      $('.dashboard-tab-title [role="tab"]').on('keydown', function (event) {
+        var index = $('.dashboard-tab-title [role="tab"]').index(this);
+        if (event.key === 'ArrowRight') { index = (index + 1) % 3; }
+        else if (event.key === 'ArrowLeft') { index = (index + 2) % 3; }
+        else if (event.key === 'Home') { index = 0; }
+        else if (event.key === 'End') { index = 2; }
+        else { return; }
+        event.preventDefault();
+        element.tabChange('telegram_media_downloader', view_names[index]);
+        $('.dashboard-tab-title [role="tab"]').eq(index).focus();
+      });
+
+      $('[data-retry]').on('click', function () {
+        var view = $(this).attr('data-retry');
+        if (view === 'chats') { reload_chat_configs(); }
+        else if (view === 'queue') { update_download_list(); }
+        else { update_already_download_list(); }
+      });
+
+      var initial_view = new URL(window.location.href).searchParams.get('view') || 'chats';
+      var initial_index = view_names.indexOf(initial_view);
+      if (initial_index < 0) { initial_index = 2; }
+      element.tabChange('telegram_media_downloader', view_names[initial_index]);
+      select_view(initial_index, false);
     });
   </script>
 </body>
