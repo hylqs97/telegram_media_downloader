@@ -42,6 +42,23 @@ class WebDirectoryTestCase(unittest.TestCase):
         kwargs.setdefault("json", {"chat_id": "-100123"})
         return self.client.post("/open_chat_directory", **kwargs)
 
+    def test_dashboard_has_guided_empty_state_and_collapsed_editor(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('id="chat_empty" hidden', html)
+        self.assertIn('data-new-chat', html)
+        self.assertIn('<details class="config-editor" id="config_editor">', html)
+        self.assertIn('<details class="advanced-settings field-stack--wide"', html)
+
+    def test_login_uses_chinese_labels_and_shared_palette(self):
+        response = self.client.get("/login")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('lang="zh-CN"', html)
+        self.assertIn("输入管理员密码", html)
+        self.assertIn('aria-controls="password"', html)
+
     def test_chat_rows_include_title_and_actual_directory(self):
         response = self.client.get("/get_chat_configs")
         row = response.get_json()["data"][0]

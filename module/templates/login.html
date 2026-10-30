@@ -1,47 +1,38 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login · Telegram Media Downloader</title>
+  <title>登录 | Telegram Media Downloader</title>
   <link href="{{ url_for('static', filename='login/css/index.css') }}" rel="stylesheet">
 </head>
 
 <body class="login-page">
   <div class="login-shell">
-    <section class="login-hero">
-      <span class="eyebrow">Secure access</span>
-      <h1>Telegram Media Downloader</h1>
-      <p>Sign in to manage queue controls, chat filters, and the live download dashboard from one modern workspace.</p>
-      <ul class="login-highlights">
-        <li>Encrypted password submission</li>
-        <li>Responsive browser dashboard</li>
-        <li>Fast controls for active jobs</li>
-      </ul>
-    </section>
-
     <section class="login-card">
       <div class="login-card__brand">
         <img src="{{ url_for('static', filename='login/images/login.svg') }}" alt="Telegram Media Downloader logo">
         <div>
-          <h2>Welcome back</h2>
-          <p>Enter the admin password to continue.</p>
+          <h1>下载管理</h1>
+          <p>Telegram Media Downloader</p>
+        </div>
+      </div>
+      <div class="login-intro">
+        <h2>登录</h2>
+        <p>输入管理员密码，进入下载管理页面。</p>
+      </div>
+      <div class="login-field">
+        <label for="password">密码</label>
+        <div class="password-row">
+          <input type="password" class="input-p" placeholder="请输入密码" id="password"
+            autocomplete="current-password">
+          <button type="button" class="password-toggle" id="togglePassword" aria-controls="password" aria-pressed="false">显示</button>
         </div>
       </div>
 
-      <label class="login-field" for="password">
-        <span>Password</span>
-        <div class="password-row">
-          <input type="password" class="input-p" placeholder="Enter your password" id="password"
-            autocomplete="current-password">
-          <button type="button" class="password-toggle" id="togglePassword">Show</button>
-        </div>
-        <small class="field-note">The password is AES-encrypted before it is sent to the server.</small>
-      </label>
-
-      <button class="confirm-btn" id="login_button" type="button" onclick="login()">Sign in</button>
-      <p class="login-footer-note">Tip: press Enter to submit.</p>
+      <button class="confirm-btn" id="login_button" type="button" onclick="login()">登录</button>
+      <p class="login-footer-note">按 Enter 键登录</p>
     </section>
   </div>
 
@@ -72,7 +63,7 @@
     const setSubmitting = (submitting) => {
       isSubmitting = submitting;
       loginButton.prop('disabled', submitting);
-      loginButton.text(submitting ? 'Signing in…' : 'Sign in');
+      loginButton.text(submitting ? '正在登录…' : '登录');
     };
 
     const login = () => {
@@ -83,7 +74,7 @@
       const pValue = passwordInput.val();
 
       if (!pValue) {
-        layer.msg('Please enter your password!');
+        layer.msg('请输入密码');
         passwordInput.trigger('focus');
         return;
       }
@@ -95,13 +86,13 @@
           if (code === '1') {
             window.location.href = window.location.origin + '/';
           } else {
-            layer.msg('Password error!');
+            layer.msg('密码错误，请重试');
             passwordInput.val('');
             passwordInput.trigger('focus');
           }
         })
         .catch(() => {
-          layer.msg('Login request failed. Please try again.');
+          layer.msg('登录请求失败，请重试');
         })
         .finally(() => {
           setSubmitting(false);
@@ -117,7 +108,8 @@
     togglePasswordButton.on('click', function () {
       const isHidden = passwordInput.attr('type') === 'password';
       passwordInput.attr('type', isHidden ? 'text' : 'password');
-      togglePasswordButton.text(isHidden ? 'Hide' : 'Show');
+      togglePasswordButton.text(isHidden ? '隐藏' : '显示');
+      togglePasswordButton.attr('aria-pressed', isHidden ? 'true' : 'false');
       passwordInput.trigger('focus');
     });
 

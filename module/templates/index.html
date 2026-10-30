@@ -71,12 +71,23 @@
           <section class="layui-tab-item layui-show" role="tabpanel" id="panel_chats" aria-labelledby="tab_chats">
             <div class="view-header">
               <h2>群聊任务</h2>
-              <span class="refresh-meta"><i class="layui-icon layui-icon-refresh-1" aria-hidden="true"></i>更新于 <time id="last_refresh_title_inline">…</time></span>
+              <div class="chat-header-actions">
+                <span class="refresh-meta"><i class="layui-icon layui-icon-refresh-1" aria-hidden="true"></i>更新于 <time id="last_refresh_title_inline">…</time></span>
+                <button type="button" class="layui-btn primary-button new-chat-button" data-new-chat hidden><i class="layui-icon layui-icon-add-1" aria-hidden="true"></i>新建任务</button>
+              </div>
             </div>
             <div class="view-notice" id="chats_error" role="alert" hidden><i class="layui-icon layui-icon-tips" aria-hidden="true"></i><span class="notice-text"></span><button type="button" class="icon-button" data-retry="chats" aria-label="重试加载群聊任务" data-tip="重试加载"><i class="layui-icon layui-icon-refresh-1" aria-hidden="true"></i></button></div>
             <div class="chat-workbench">
-              <div class="task-region"><table class="layui-hide" id="chat_config_list" lay-filter="chat_config_list"></table></div>
-              <details class="config-editor" id="config_editor" open>
+              <div class="task-region" id="task_region">
+                <table class="layui-hide" id="chat_config_list" lay-filter="chat_config_list"></table>
+                <div class="chat-empty" id="chat_empty" hidden>
+                  <i class="layui-icon layui-icon-template-1" aria-hidden="true"></i>
+                  <h3>还没有群聊任务</h3>
+                  <p>添加群聊并设置下载规则，即可在这里管理任务。</p>
+                  <button type="button" class="layui-btn primary-button" data-new-chat><i class="layui-icon layui-icon-add-1" aria-hidden="true"></i>新建任务</button>
+                </div>
+              </div>
+              <details class="config-editor" id="config_editor">
                 <summary><h3>下载规则</h3><span class="editor-mode" id="editor_mode">新建任务</span><i class="layui-icon layui-icon-down" aria-hidden="true"></i></summary>
               <form class="layui-form chat-config-form" lay-filter="chat_config_form">
                 <input type="hidden" name="origin_chat_id" id="origin_chat_id">
@@ -91,6 +102,9 @@
                     <input type="number" name="last_read_message_id" min="0" placeholder="0"
                       autocomplete="off" class="layui-input">
                   </label>
+                  <details class="advanced-settings field-stack--wide" id="advanced_settings">
+                    <summary>高级过滤条件 <span>文件大小、日期和表达式</span></summary>
+                    <div class="advanced-grid">
                   <label class="field-stack">
                     <span>最小文件</span>
                     <input type="text" name="file_size_min" placeholder="10 MB"
@@ -114,6 +128,8 @@
                     <input type="text" name="download_filter" placeholder="file_size &lt; 500MB"
                       autocomplete="off" class="layui-input">
                   </label>
+                    </div>
+                  </details>
                   <div class="field-stack field-stack--actions">
                     <div class="chat-config-actions">
                       <button type="submit" class="layui-btn layui-btn-sm primary-button" lay-submit lay-filter="save_chat_config"><i class="layui-icon layui-icon-ok" aria-hidden="true"></i><span>保存规则</span></button>
@@ -474,6 +490,9 @@
             }
             chat_config_table_data = result.data || [];
             reload_table_by_content(chatConfigTable, chatConfigColumns, chat_config_table_data);
+            $('#task_region').toggleClass('is-empty', chat_config_table_data.length === 0);
+            $('#chat_empty').prop('hidden', chat_config_table_data.length !== 0);
+            $('.new-chat-button').prop('hidden', chat_config_table_data.length === 0);
             update_summary_cards();
             touch_refresh_time();
             load_error('chats', '');
@@ -497,6 +516,7 @@
           end_date: '',
           download_filter: ''
         });
+        $('#advanced_settings').prop('open', false);
         sync_date_picker_limits();
       }
 
@@ -529,6 +549,7 @@
 
       form.on('submit(save_chat_config)', function (data) {
         if (!is_valid_date_range(data.field.start_date, data.field.end_date)) {
+          $('#advanced_settings').prop('open', true);
           $('#end_date_input').attr('aria-invalid', 'true').focus();
           form_feedback('结束日期不能早于开始日期', 'error');
           return false;
@@ -542,6 +563,12 @@
       });
 
       $('#reset_chat_config').on('click', function () {
+        reset_chat_form();
+        $('#config_editor').prop('open', true);
+        $('[name="chat_id"]').focus();
+      });
+
+      $('[data-new-chat]').on('click', function () {
         reset_chat_form();
         $('#config_editor').prop('open', true);
         $('[name="chat_id"]').focus();
@@ -572,6 +599,10 @@
           });
           $('#editor_mode').text('编辑任务');
           $('#config_editor').prop('open', true);
+          $('#advanced_settings').prop('open', Boolean(
+            data.file_size_min_bytes != null || data.file_size_max_bytes != null ||
+            data.start_date || data.end_date || data.download_filter
+          ));
           form_feedback('');
           sync_date_picker_limits();
           $('[name="chat_id"]').focus();
